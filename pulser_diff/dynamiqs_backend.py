@@ -23,8 +23,6 @@ from typing import Any, Optional, Union, cast
 
 import matplotlib.pyplot as plt
 import torch
-import dynamiqs as dq
-from dynamiqs.time_tensor import CallableTimeTensor
 from numpy.typing import ArrayLike
 
 import pulser.sampler as sampler
@@ -43,6 +41,8 @@ from pulser_diff.simresults import (
     NoisyResults,
     SimulationResults,
 )
+import pulser_diff.dq as dq
+from pulser_diff.dq.time_tensor import CallableTimeTensor
 
 from memory_profiler import profile
 
@@ -496,7 +496,6 @@ class DynamiqsEmulator:
         )  # Creates new Qutip.Qobj
 
     # Run Simulation Evolution using Qutip
-    # @torch.autocast(device_type="cpu", dtype=torch.bfloat16)
     def run(
         self,
         progress_bar: bool = False,
@@ -531,8 +530,6 @@ class DynamiqsEmulator:
             ]
             if pulse_durations:
                 options["max_step"] = 0.5 * min(pulse_durations) / 1000
-
-        # solv_ops = dq.Options(**options)  # TODO: learn to use options for dynamiqs solver
 
         meas_errors: Optional[Mapping[str, float]] = None
         if "SPAM" in self.config.noise:
@@ -573,7 +570,6 @@ class DynamiqsEmulator:
                     self._eval_times_array,
                     self._hamiltonian._collapse_ops,
                     progress_bar=p_bar,
-                    # options=solv_ops,
                 )
             else:
                 result = dq.sesolve(
@@ -581,9 +577,7 @@ class DynamiqsEmulator:
                                          self._hamiltonian._hamiltonian(0.0)),
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
-                    gradient=dq.gradient.Autograd(),
                     options=dict(verbose=True if progress_bar else False)
-                    # options=solv_ops,
                 )
             results = [
                 DynamiqsResult(

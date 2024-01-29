@@ -21,7 +21,7 @@ from collections.abc import Mapping
 from typing import Union, cast
 
 import torch
-import dynamiqs as dq
+
 
 from pulser.backend.noise_model import NoiseModel
 from pulser.devices._device_datacls import BaseDevice
@@ -30,6 +30,7 @@ from pulser.sampler.samples import SequenceSamples, _PulseTargetSlot
 from pulser_simulation.simconfig import SUPPORTED_NOISES, doppler_sigma
 
 from pulser_diff.utils import kron
+import pulser_diff.dq as dq
 from functools import reduce
 
 
