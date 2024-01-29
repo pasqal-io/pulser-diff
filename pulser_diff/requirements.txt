@@ -1,0 +1,1 @@
+dynamiqs @ git+https://github.com/vytautas-a/dynamiqs.git@time-derivative-fix

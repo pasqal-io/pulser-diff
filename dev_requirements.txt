@@ -1,0 +1,16 @@
+# tests
+black[jupyter] ~= 23.1
+flake8
+flake8-docstrings
+isort
+mypy == 1.2
+pytest
+pytest-cov
+
+# CI
+pre-commit
+
+# tutorials
+notebook
+python-igraph
+scikit-optimize
