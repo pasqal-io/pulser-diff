@@ -24,11 +24,11 @@ from typing import Mapping, Optional, Tuple, Union, cast
 
 import matplotlib.pyplot as plt
 import torch
-import dynamiqs as dq
 import numpy as np
 
 from pulser.result import Results, ResultType, SampledResult
 from pulser_diff.dynamiqs_result import DynamiqsResult
+import pulser_diff.dq as dq
 
 
 class SimulationResults(ABC, Results[ResultType]):
