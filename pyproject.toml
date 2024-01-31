@@ -7,9 +7,9 @@ name = "pulser-diff"
 description = "Differentiable backend for Pulser"
 readme = "README.md"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=3.9,<3.11"
 license = {text = "Proprietary"}
-keywords = ["quantum"]
+keywords = ["quantum", "pulser"]
 authors = [
   { name = "Vytautas Abramavicius", email = "vytautas.abramavicius@pasqal.com" },
 ]
@@ -18,17 +18,16 @@ classifiers = [
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: Implementation :: CPython",
   "Programming Language :: Python :: Implementation :: PyPy",
 ]
 
 # always specify a version for each package
 # to maintain consistency
-#dependencies = [
-#  "pulser @ git@github.com:pasqal-io/Pulser.git@va/pulser-torch"
-#  "dynamiqs @ git+https://github.com/vytautas-a/dynamiqs.git@time-derivative-fix"
-#]
+dependencies = [
+  "torch",
+  "pulser @ git@github.com:pasqal-io/Pulser.git@va/pulser-torch"
+]
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -48,25 +47,42 @@ PIP_EXTRA_INDEX_URL = "https://{env:PYPI_USERNAME}:{env:PYPI_PASSWORD}@gitlab.pa
 
 [project.urls]
 Documentation = ""
-Issues = "https://gitlab.pasqal.com/pqs/template-python-project/-/issues"
-Source = "https://gitlab.pasqal.com/pqs/template-python-project"
+Issues = "https://gitlab.pasqal.com/pqs/pulser-diff/-/issues"
+Source = "https://gitlab.pasqal.com/pqs/pulser-diff"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pulser_diff"]
 
 [tool.hatch.envs.default]
-features = ["extras"]
 dependencies = [
+  "flaky",
+  "hypothesis",
   "pytest",
   "pytest-cov",
+  "pytest-mypy",
   "pytest-xdist",
   "nbconvert",
   "ipykernel",
   "pre-commit",
   "black",
-  "ruff"
+  "isort",
+  "ruff",
+  "notebook<7.0",
+  "dill",
 ]
+features = ["all"]
+
+[tool.hatch.envs.default.scripts]
+test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=qadence_extensions {args}"
+test-examples = "pytest ./tests/test_examples.py {args}"
+test-docs = "mkdocs build --clean --strict"
 
 [tool.pytest.ini_options]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 testpaths = ["tests"]
-addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=template_python --cov=tests"""
+addopts = """-vvv"""
 xfail_strict = true
 filterwarnings = [
   "ignore:Call to deprecated create function FieldDescriptor",
@@ -79,7 +95,6 @@ filterwarnings = [
 ]
 
 [tool.hatch.envs.docs]
-detached = true
 dependencies = [
   "mkdocs",
   "mkdocs-material",
@@ -89,15 +104,18 @@ dependencies = [
   "mkdocs-jupyter",
   "mkdocs-exclude",
   "markdown-exec",
-  "jupyter_contrib_nbextensions"
+  "notebook<7",
+  "jupyter_contrib_nbextensions",
+  "dill",
 ]
+features = ["all"]
 
 [tool.hatch.envs.docs.scripts]
 build = "mkdocs build --clean --strict"
 serve = "mkdocs serve --dev-addr localhost:8000"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["39", "310", "311"]
+python = ["39", "310"]
 
 [tool.coverage.run]
 branch = true
