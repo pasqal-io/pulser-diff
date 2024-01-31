@@ -9,9 +9,9 @@ from torch import Tensor
 from torch.autograd.function import FunctionCtx, once_differentiable
 from tqdm.std import TqdmWarning
 
-from ..solver import AdjointSolver
-from ..utils.utils import tqdm
-from .ode_solver import ODESolver
+from pulser_diff.dq.solvers.solver import AdjointSolver
+from pulser_diff.dq.solvers.utils.utils import tqdm
+from pulser_diff.dq.solvers.ode.ode_solver import ODESolver
 
 
 class AdjointODESolver(ODESolver, AdjointSolver):

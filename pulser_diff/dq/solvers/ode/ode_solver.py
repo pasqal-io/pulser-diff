@@ -5,8 +5,8 @@ from typing import Any
 from torch import Tensor
 from tqdm import TqdmWarning
 
-from ..solver import AutogradSolver
-from ..utils.utils import tqdm
+from pulser_diff.dq.solvers.solver import AutogradSolver
+from pulser_diff.dq.solvers.utils.utils import tqdm
 
 
 class ODESolver(AutogradSolver):

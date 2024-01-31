@@ -4,7 +4,7 @@ import warnings
 
 from torch import Tensor
 
-from ..solvers.ode.adaptive_solver import AdjointAdaptiveSolver, DormandPrince5
+from pulser_diff.dq.solvers.ode.adaptive_solver import AdjointAdaptiveSolver, DormandPrince5
 
 
 class SEAdaptive(AdjointAdaptiveSolver):

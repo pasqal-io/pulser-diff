@@ -8,10 +8,10 @@ import torch
 from torch import Tensor
 from tqdm import tqdm as std_tqdm
 
-from ..._utils import obj_type_str
-from ...time_tensor import TimeTensor
-from ...utils.tensor_types import ArrayLike
-from ...utils.utils import isket
+from pulser_diff.dq._utils import obj_type_str
+from pulser_diff.dq.time_tensor import TimeTensor
+from pulser_diff.dq.utils.tensor_types import ArrayLike
+from pulser_diff.dq.utils.utils import isket
 
 # define a default progress bar format
 PBAR_FORMAT = '|{bar}| {percentage:4.1f}% - time {elapsed}/{remaining}'

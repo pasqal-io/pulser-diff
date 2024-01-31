@@ -7,9 +7,9 @@ from typing import Any
 import torch
 from torch import Tensor
 
-from ..utils.utils import add_tuples, hairer_norm, none_to_zeros_like
-from .adjoint_ode_solver import AdjointODESolver, new_leaf_tensor
-from .ode_solver import ODESolver
+from pulser_diff.dq.solvers.utils.utils import add_tuples, hairer_norm, none_to_zeros_like
+from pulser_diff.dq.solvers.ode.adjoint_ode_solver import AdjointODESolver, new_leaf_tensor
+from pulser_diff.dq.solvers.ode.ode_solver import ODESolver
 
 
 class AdaptiveSolver(ODESolver):

@@ -6,9 +6,9 @@ from typing import get_args
 import torch
 from torch import Tensor
 
-from .operators import displace
-from .tensor_types import ArrayLike, Number, get_cdtype, to_tensor
-from .utils import tensprod, todm
+from pulser_diff.dq.utils.operators import displace
+from pulser_diff.dq.utils.tensor_types import ArrayLike, Number, get_cdtype, to_tensor
+from pulser_diff.dq.utils.utils import tensprod, todm
 
 __all__ = ['fock', 'fock_dm', 'basis', 'basis_dm', 'coherent', 'coherent_dm']
 

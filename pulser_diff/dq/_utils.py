@@ -7,7 +7,7 @@ import torch
 from methodtools import lru_cache
 from torch import Tensor
 
-from .utils.utils import isket
+from pulser_diff.dq.utils.utils import isket
 
 
 def type_str(type: Any) -> str:

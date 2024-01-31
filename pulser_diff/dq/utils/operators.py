@@ -7,9 +7,9 @@ from typing import get_args
 import torch
 from torch import Tensor
 
-from .._utils import to_device
-from .tensor_types import ArrayLike, Number, get_cdtype, to_tensor
-from .utils import tensprod
+from pulser_diff.dq._utils import to_device
+from pulser_diff.dq.utils.tensor_types import ArrayLike, Number, get_cdtype, to_tensor
+from pulser_diff.dq.utils.utils import tensprod
 
 __all__ = [
     'eye',

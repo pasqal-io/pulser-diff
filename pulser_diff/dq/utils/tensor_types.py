@@ -7,8 +7,8 @@ import torch
 from qutip import Qobj
 from torch import Tensor
 
-from .._utils import hdim, obj_type_str
-from .utils import isbra, isket, isop
+from pulser_diff.dq._utils import hdim, obj_type_str
+from pulser_diff.dq.utils.utils import isbra, isket, isop
 
 __all__ = ['to_tensor', 'to_numpy', 'to_qutip', 'from_qutip']
 

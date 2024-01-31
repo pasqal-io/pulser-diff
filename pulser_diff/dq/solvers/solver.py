@@ -6,10 +6,10 @@ from time import time
 import torch
 from torch import Tensor
 
-from ..time_tensor import TimeTensor
-from .options import Options
-from .result import Result
-from .utils.utils import bexpect, iteraxis
+from pulser_diff.dq.time_tensor import TimeTensor
+from pulser_diff.dq.solvers.options import Options
+from pulser_diff.dq.solvers.result import Result
+from pulser_diff.dq.solvers.utils.utils import bexpect, iteraxis
 
 
 class Solver(ABC):

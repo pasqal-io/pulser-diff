@@ -5,8 +5,8 @@ from typing import Any
 
 from torch import Tensor
 
-from ..solver import Dopri5
-from .options import Options
+from pulser_diff.dq.solver import Dopri5
+from pulser_diff.dq.solvers.options import Options
 
 
 def memory_bytes(x: Tensor) -> int:

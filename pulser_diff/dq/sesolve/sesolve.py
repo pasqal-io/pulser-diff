@@ -4,13 +4,13 @@ from typing import Any, get_args
 
 import torch
 
-from .._utils import check_time_tensor, obj_type_str
-from ..solvers.options import Options
-from ..solvers.result import Result
-from ..solvers.utils.utils import to_time_operator
-from ..time_tensor import TimeTensor
-from ..utils.tensor_types import ArrayLike, to_tensor
-from .adaptive import SEDormandPrince5
+from pulser_diff.dq._utils import check_time_tensor, obj_type_str
+from pulser_diff.dq.solvers.options import Options
+from pulser_diff.dq.solvers.result import Result
+from pulser_diff.dq.solvers.utils.utils import to_time_operator
+from pulser_diff.dq.time_tensor import TimeTensor
+from pulser_diff.dq.utils.tensor_types import ArrayLike, to_tensor
+from pulser_diff.dq.sesolve.adaptive import SEDormandPrince5
 
 
 def sesolve(

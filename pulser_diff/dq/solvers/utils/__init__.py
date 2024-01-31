@@ -1,1 +1,1 @@
-from .utils import *
+from pulser_diff.dq.solvers.utils.utils import *

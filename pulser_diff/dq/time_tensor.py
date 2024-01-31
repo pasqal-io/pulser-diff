@@ -5,8 +5,8 @@ from abc import abstractmethod, abstractproperty
 import torch
 from torch import Tensor
 
-from ._utils import cache, obj_type_str, type_str
-from .utils.tensor_types import (
+from pulser_diff.dq._utils import cache, obj_type_str, type_str
+from pulser_diff.dq.utils.tensor_types import (
     ArrayLike,
     Number,
     get_cdtype,
