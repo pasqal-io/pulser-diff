@@ -1,11 +1,12 @@
 import torch
+from torch import Tensor
 
 
-def kron(*args: tuple[torch.Tensor]) -> torch.Tensor:
+def kron(*args: tuple[Tensor]) -> Tensor:
     if not all([t.is_sparse for t in args]):
         raise ValueError("All arguments must be sparse tensors")
     
-    mat1: torch.Tensor = args[0]
+    mat1: Tensor = args[0]
     if len(args) == 1:
         # return last matrix
         return mat1

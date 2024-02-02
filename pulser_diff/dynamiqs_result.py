@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Union, cast
 
 import torch
+from torch import Tensor
 import numpy as np
 
 from pulser.register import QubitId
@@ -40,7 +41,7 @@ class DynamiqsResult(Result):
 
     atom_order: tuple[QubitId, ...]
     meas_basis: str
-    state: torch.Tensor
+    state: Tensor
     matching_meas_basis: bool
 
     @property
@@ -74,7 +75,7 @@ class DynamiqsResult(Result):
             )
         return self.meas_basis
 
-    def _weights(self) -> torch.Tensor:
+    def _weights(self) -> Tensor:
         n = self._size
         if not self.state.shape[1] == 1:
             probs = torch.abs(self.state.diag())
@@ -129,7 +130,7 @@ class DynamiqsResult(Result):
                 "dimension > 3."
             )
         # Takes care of numerical artefacts in case sum(weights) != 1
-        return cast(torch.Tensor, weights / sum(weights))
+        return cast(Tensor, weights / sum(weights))
 
     def get_state(
         self,
@@ -137,7 +138,7 @@ class DynamiqsResult(Result):
         ignore_global_phase: bool = True,
         tol: float = 1e-6,
         normalize: bool = True,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """Gets the state with some optional post-processing.
 
         Args:

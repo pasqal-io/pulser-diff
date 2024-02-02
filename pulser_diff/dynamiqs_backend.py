@@ -23,6 +23,7 @@ from typing import Any, Optional, Union, cast
 
 import matplotlib.pyplot as plt
 import torch
+from torch import Tensor
 from numpy.typing import ArrayLike
 
 import pulser.sampler as sampler
@@ -164,7 +165,7 @@ class DynamiqsEmulator:
             noise_model,
         )
         # Initializing evaluation times
-        self._eval_times_array: torch.Tensor
+        self._eval_times_array: Tensor
         self.set_evaluation_times(evaluation_times)
 
         if self.samples_obj._measurement:
@@ -176,8 +177,11 @@ class DynamiqsEmulator:
                 self._meas_basis = self._hamiltonian.basis_name
         self.set_initial_state("all-ground")
 
+        # create inter-qubit distance container
+        self.dist_dict = {}
+
     @property
-    def sampling_times(self) -> torch.Tensor:
+    def sampling_times(self) -> Tensor:
         """The times at which hamiltonian is sampled."""
         return self._hamiltonian.sampling_times
 
@@ -302,12 +306,12 @@ class DynamiqsEmulator:
             self._hamiltonian.set_config(SimConfig().to_noise_model())
 
     @property
-    def initial_state(self) -> torch.Tensor:
+    def initial_state(self) -> Tensor:
         """The initial state of the simulation."""
         return self._initial_state
 
     def set_initial_state(
-        self, state: torch.Tensor
+        self, state: Tensor
     ) -> None:
         """Sets the initial state of the simulation.
 
@@ -319,7 +323,7 @@ class DynamiqsEmulator:
                 - An ArrayLike with a shape compatible with the system
                 - A Qobj object
         """
-        self._initial_state: torch.Tensor
+        self._initial_state: Tensor
         if isinstance(state, str) and state == "all-ground":
             self._initial_state = dq.tensprod(
                 *[
@@ -330,7 +334,7 @@ class DynamiqsEmulator:
                 ]
             )
         else:
-            state = cast(torch.Tensor, state)
+            state = cast(Tensor, state)
             shape = state.shape[0]
             legal_shape = self._hamiltonian.dim**self._hamiltonian._size
             legal_dims = [
@@ -345,16 +349,16 @@ class DynamiqsEmulator:
             self._initial_state = state
 
     @property
-    def evaluation_times(self) -> torch.Tensor:
+    def evaluation_times(self) -> Tensor:
         """The times at which the results of this simulation are returned."""
         return self._eval_times_array
     
     @property
-    def qq_distances(self) -> list:
-        return self._hamiltonian._dist_list
+    def qq_distances(self) -> list[Tensor]:
+        return self.dist_dict
     
     @property
-    def endtimes(self) -> torch.Tensor:
+    def endtimes(self) -> list:
         from bisect import bisect_left
 
         # get end timestamps of all pulses
@@ -417,7 +421,7 @@ class DynamiqsEmulator:
             )
             # Note: if `value` is very small `eval_times` is an empty list:
             eval_times = self._hamiltonian.sampling_times[indices]
-        elif isinstance(value, (list, tuple, torch.Tensor)):
+        elif isinstance(value, (list, tuple, Tensor)):
             if torch.max(value, initial=0) > self._tot_duration / 1000:
                 raise ValueError(
                     "Provided evaluation-time list extends "
@@ -437,10 +441,10 @@ class DynamiqsEmulator:
             )
         # Ensure 0 and final time are included:
         self._eval_times_array = torch.cat([eval_times, 
-                                            torch.tensor([0.0, self._tot_duration / 1000])]).unique().requires_grad_(True)
+                                            torch.tensor([0.0, self._tot_duration / 1000])]).unique().requires_grad_(False)
         self._eval_times_instruction = value
 
-    def build_operator(self, operations: Union[list, tuple]) -> torch.Tensor:
+    def build_operator(self, operations: Union[list, tuple]) -> Tensor:
         """Creates an operator with non-trivial actions on some qubits.
 
         Takes as argument a list of tuples ``[(operator_1, qubits_1),
@@ -464,7 +468,7 @@ class DynamiqsEmulator:
         """
         return self._hamiltonian.build_operator(operations)
 
-    def get_hamiltonian(self, time: float) -> torch.Tensor:
+    def get_hamiltonian(self, time: float) -> Tensor:
         r"""Get the Hamiltonian created from the sequence at a fixed time.
 
         Note:
@@ -498,6 +502,8 @@ class DynamiqsEmulator:
     # Run Simulation Evolution using Qutip
     def run(
         self,
+        time_grad: bool = False,
+        dist_grad: bool = False,
         progress_bar: bool = False,
         **options: Any,
     ) -> SimulationResults:
@@ -518,6 +524,16 @@ class DynamiqsEmulator:
 
                 .. _docs: https://bit.ly/3il9A2u
         """
+
+        if time_grad:
+            # store gradient information for evaluation times
+            self._eval_times_array.requires_grad_(True)
+        if dist_grad:
+            # store gradient information for inter-qubit distances
+            for k, v in self._hamiltonian._dist_dict.items():
+                v.requires_grad_(True).retain_grad()
+                self.dist_dict[k] = v
+
         if "max_step" not in options:
             pulse_durations = [
                 slot.tf - slot.ti
