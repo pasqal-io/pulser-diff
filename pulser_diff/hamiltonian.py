@@ -21,7 +21,7 @@ from collections.abc import Mapping
 from typing import Union, cast
 
 import torch
-
+from torch import Tensor
 
 from pulser.backend.noise_model import NoiseModel
 from pulser.devices._device_datacls import BaseDevice
@@ -50,7 +50,7 @@ class Hamiltonian:
     def __init__(
         self,
         samples_obj: SequenceSamples,
-        qdict: dict[QubitId, torch.Tensor],
+        qdict: dict[QubitId, Tensor],
         device: BaseDevice,
         sampling_rate: float,
         config: NoiseModel,
@@ -60,13 +60,13 @@ class Hamiltonian:
         self._qdict = qdict
         self._device = device
         self._sampling_rate = sampling_rate
-        self._dist_list = []
+        self._dist_dict = {}
 
         # Type hints for attributes defined outside of __init__
         self.basis_name: str
         self._config: NoiseModel
-        self.op_matrix: dict[str, torch.Tensor]
-        self.basis: dict[str, torch.Tensor]
+        self.op_matrix: dict[str, Tensor]
+        self.basis: dict[str, Tensor]
         self.dim: int
         self._bad_atoms: dict[Union[str, int], bool] = {}
         self._doppler_detune: dict[Union[str, int], float] = {}
@@ -90,11 +90,11 @@ class Hamiltonian:
         self.operators: dict[str, defaultdict[str, dict]] = {
             addr: defaultdict(dict) for addr in ["Global", "Local"]
         }
-        self._collapse_ops: list[torch.Tensor] = []
+        self._collapse_ops: list[Tensor] = []
 
         self.set_config(config)
 
-    def _adapt_to_sampling_rate(self, full_array: torch.Tensor) -> torch.Tensor:
+    def _adapt_to_sampling_rate(self, full_array: Tensor) -> Tensor:
         """Adapt list to correspond to sampling rate."""
         indices = torch.linspace(
             0,
@@ -102,7 +102,7 @@ class Hamiltonian:
             int(self._sampling_rate * self._duration),
             dtype=int,
         )
-        return cast(torch.Tensor, full_array[indices])
+        return cast(Tensor, full_array[indices])
 
     @property
     def config(self) -> NoiseModel:
@@ -155,6 +155,8 @@ class Hamiltonian:
         """
         if not isinstance(cfg, NoiseModel):
             raise ValueError(f"Object {cfg} is not a valid `NoiseModel`.")
+        if len(cfg.noise_types) > 0:
+            raise NotImplementedError("Noisy simulations are not supported by pulser-diff")
         not_supported = (
             set(cfg.noise_types) - SUPPORTED_NOISES[self._interaction]
         )
@@ -191,7 +193,7 @@ class Hamiltonian:
 
         def add_noise(
             slot: _PulseTargetSlot,
-            samples_dict: Mapping[QubitId, dict[str, torch.Tensor]],
+            samples_dict: Mapping[QubitId, dict[str, Tensor]],
             is_global_pulse: bool,
         ) -> None:
             """Builds hamiltonian coefficients.
@@ -230,7 +232,7 @@ class Hamiltonian:
                             samples["Local"][basis][qid][qty] = 0.0
         self.samples = samples
 
-    def build_operator(self, operations: Union[list, tuple]) -> torch.Tensor:
+    def build_operator(self, operations: Union[list, tuple]) -> Tensor:
         """Creates an operator with non-trivial actions on some qubits.
 
         Takes as argument a list of tuples ``[(operator_1, qubits_1),
@@ -350,7 +352,7 @@ class Hamiltonian:
             self._update_noise()
         self._extract_samples()
 
-        def make_vdw_term(q1: QubitId, q2: QubitId) -> torch.Tensor:
+        def make_vdw_term(q1: QubitId, q2: QubitId) -> Tensor:
             """Construct the Van der Waals interaction Term.
 
             For each pair of qubits, calculate the distance between them,
@@ -358,13 +360,12 @@ class Hamiltonian:
             The units are given so that the coefficient includes a
             1/hbar factor.
             """
-            dist: torch.Tensor = torch.linalg.norm(self._qdict[q1] - self._qdict[q2])
-            dist.requires_grad_().retain_grad()
-            self._dist_list.append(dist)
-            U = 0.5 * self._device.interaction_coeff / dist**6
+            dist: Tensor = torch.linalg.norm(self._qdict[q1] - self._qdict[q2])
+            self._dist_dict[f"{q1}-{q2}"] = dist
+            U = (1.0+0.0j) * 0.5 * self._device.interaction_coeff / dist**6
             return self.build_operator([("sigma_rr", [q1, q2])]) * U
 
-        def make_xy_term(q1: QubitId, q2: QubitId) -> torch.Tensor:
+        def make_xy_term(q1: QubitId, q2: QubitId) -> Tensor:
             """Construct the XY interaction Term.
 
             For each pair of qubits, calculate the distance between them,
@@ -374,7 +375,7 @@ class Hamiltonian:
             """
             dist = torch.linalg.norm(self._qdict[q1] - self._qdict[q2])
             coords_dim = len(self._qdict[q1])
-            mag_field = cast(torch.Tensor, self.samples_obj._magnetic_field)[
+            mag_field = cast(Tensor, self.samples_obj._magnetic_field)[
                 :coords_dim
             ]
             mag_norm = torch.linalg.norm(mag_field)
@@ -395,7 +396,7 @@ class Hamiltonian:
                 [("sigma_ud", [q1]), ("sigma_du", [q2])]
             ) * U
 
-        def make_interaction_term(masked: bool = False) -> torch.Tensor:
+        def make_interaction_term(masked: bool = False) -> Tensor:
             if masked:
                 # Calculate the total number of good, unmasked qubits
                 effective_size = self._size - sum(self._bad_atoms.values())
@@ -555,7 +556,7 @@ class Hamiltonian:
 
         def H_t(t):
             # make sure that time is a tensor
-            if not isinstance(t, torch.Tensor):
+            if not isinstance(t, Tensor):
                 t = torch.tensor(t)
 
             # calculate time indices for interpolation
@@ -566,7 +567,7 @@ class Hamiltonian:
             ham = 2 * int_mat
             for det_mat, det_val in zip(det_matrices, det_values):
                 det = det_val[t_idx1] + (det_val[t_idx2] - det_val[t_idx1]) * (t - t_idx1 * dt) / dt
-                ham = (det_mat + det_mat.adjoint()) * det
+                ham += (det_mat + det_mat.adjoint()) * det
             for amp_mat, amp_val in zip(amp_matrices, amp_values):
                 amp = amp_val[t_idx1] + (amp_val[t_idx2] - amp_val[t_idx1]) * (t - t_idx1 * dt) / dt
                 ham += (amp_mat + amp_mat.adjoint()) * amp

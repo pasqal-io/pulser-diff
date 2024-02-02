@@ -24,6 +24,7 @@ from typing import Mapping, Optional, Tuple, Union, cast
 
 import matplotlib.pyplot as plt
 import torch
+from torch import Tensor
 import numpy as np
 
 from pulser.result import Results, ResultType, SampledResult
@@ -43,7 +44,7 @@ class SimulationResults(ABC, Results[ResultType]):
     _use_pseudo_dens: bool = False
 
     def __init__(
-        self, size: int, basis_name: str, sim_times: torch.Tensor
+        self, size: int, basis_name: str, sim_times: Tensor
     ) -> None:
         """Initializes a new SimulationResults instance.
 
@@ -66,23 +67,23 @@ class SimulationResults(ABC, Results[ResultType]):
 
     @property
     @abstractmethod
-    def states(self) -> list[torch.Tensor]:
+    def states(self) -> list[Tensor]:
         """Lists states of the system at simulation times."""
         pass
 
     @abstractmethod
-    def get_state(self, t: float) -> torch.Tensor:
+    def get_state(self, t: float) -> Tensor:
         """Returns the state of the system at time t."""
         pass
 
     @abstractmethod
-    def get_final_state(self) -> torch.Tensor:
+    def get_final_state(self) -> Tensor:
         """Returns the final state of the system."""
         pass
 
     def expect(
-        self, obs_list: collections.abc.Sequence[torch.Tensor]
-    ) -> list[Union[float, complex, torch.Tensor]]:
+        self, obs_list: collections.abc.Sequence[Tensor]
+    ) -> list[Union[float, complex, Tensor]]:
         """Returns the expectation values of operators in obs_list.
 
         Args:
@@ -92,7 +93,7 @@ class SimulationResults(ABC, Results[ResultType]):
         Returns:
             Expectation values of obs_list.
         """
-        if not isinstance(obs_list, (list, torch.Tensor)):
+        if not isinstance(obs_list, (list, Tensor)):
             raise TypeError("`obs_list` must be a list of operators.")
 
         qobj_list = []
@@ -102,7 +103,7 @@ class SimulationResults(ABC, Results[ResultType]):
         legal_shape = (dim**self._size, dim**self._size)
         for obs in obs_list:
             if not (
-                isinstance(obs, torch.Tensor)
+                isinstance(obs, Tensor)
             ):
                 raise TypeError(
                     f"Incompatible type {type(obs)} of "
@@ -158,7 +159,7 @@ class SimulationResults(ABC, Results[ResultType]):
         """
         return self.sample_state(self._sim_times[-1], N_samples)
 
-    def plot(self, op: torch.Tensor, fmt: str = "", label: str = "") -> None:
+    def plot(self, op: Tensor, fmt: str = "", label: str = "") -> None:
         """Plots the expectation value of a given operator op.
 
         Args:
@@ -187,7 +188,7 @@ class SimulationResults(ABC, Results[ResultType]):
             )
 
     @lru_cache(maxsize=None)
-    def _calc_pseudo_density(self, t_index: int) -> torch.Tensor:
+    def _calc_pseudo_density(self, t_index: int) -> Tensor:
         """Calculates the pseudo-density matrix at a given time.
 
         The pseudo-density matrix is the diagonal matrix calculated from the
@@ -201,7 +202,7 @@ class SimulationResults(ABC, Results[ResultType]):
             The pseudo-density matrix as a Qobj.
         """
 
-        def _proj_from_bitstring(bitstring: str) -> torch.Tensor:
+        def _proj_from_bitstring(bitstring: str) -> Tensor:
             proj = dq.tensprod(
                 *[self._meas_projector(int(i)) for i in bitstring]
             )
@@ -213,7 +214,7 @@ class SimulationResults(ABC, Results[ResultType]):
             for i in torch.nonzero(w)[0]
         )
 
-    def _meas_projector(self, state_n: int) -> torch.Tensor:
+    def _meas_projector(self, state_n: int) -> Tensor:
         """Gets the post measurement projector.
 
         Args:
@@ -243,7 +244,7 @@ class NoisyResults(SimulationResults):
         run_output: typing.Sequence[SampledResult],
         size: int,
         basis_name: str,
-        sim_times: torch.Tensor,
+        sim_times: Tensor,
         n_measures: int,
     ) -> None:
         """Initializes a new NoisyResults instance.
@@ -276,7 +277,7 @@ class NoisyResults(SimulationResults):
         self._results = tuple(run_output)
 
     @property
-    def states(self) -> list[torch.Tensor]:
+    def states(self) -> list[Tensor]:
         """Measured states as a list of diagonal qutip.Qobj."""
         return [self.get_state(t) for t in self._sim_times]
 
@@ -285,7 +286,7 @@ class NoisyResults(SimulationResults):
         """Probability distribution of the bitstrings."""
         return [Counter(res.sampling_dist) for res in self]
 
-    def get_state(self, t: float, t_tol: float = 1.0e-3) -> torch.Tensor:
+    def get_state(self, t: float, t_tol: float = 1.0e-3) -> Tensor:
         """Gets the state at time t as a diagonal density matrix.
 
         Note:
@@ -303,7 +304,7 @@ class NoisyResults(SimulationResults):
         t_index = self._get_index_from_time(t, t_tol)
         return self._calc_pseudo_density(t_index)
 
-    def get_final_state(self) -> torch.Tensor:
+    def get_final_state(self) -> Tensor:
         """Get the final state of the simulation as a diagonal density matrix.
 
         Note:
@@ -317,7 +318,7 @@ class NoisyResults(SimulationResults):
 
     def plot(
         self,
-        op: torch.Tensor,
+        op: Tensor,
         fmt: str = ".",
         label: str = "",
         error_bars: bool = True,
@@ -338,7 +339,7 @@ class NoisyResults(SimulationResults):
         def get_error_bars() -> Tuple[ArrayLike, ArrayLike]:
             moy = self.expect([op])[0]
             standard_dev = cast(
-                torch.Tensor,
+                Tensor,
                 torch.sqrt(qutip.variance(op, self.states) / self.n_measures),
             )
             return moy, standard_dev
@@ -366,7 +367,7 @@ class CoherentResults(SimulationResults):
         run_output: typing.Sequence[DynamiqsResult],
         size: int,
         basis_name: str,
-        sim_times: torch.Tensor,
+        sim_times: Tensor,
         meas_basis: str,
         meas_errors: Optional[Mapping[str, float]] = None,
     ) -> None:
@@ -410,7 +411,7 @@ class CoherentResults(SimulationResults):
         self._meas_errors = meas_errors
 
     @property
-    def states(self) -> list[torch.Tensor]:
+    def states(self) -> list[Tensor]:
         """List of ``qutip.Qobj`` for each state in the simulation."""
         return torch.stack([res.state for res in self])
 
@@ -422,7 +423,7 @@ class CoherentResults(SimulationResults):
         tol: float = 1e-6,
         normalize: bool = True,
         t_tol: float = 1.0e-3,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """Get the state at time t of the simulation.
 
         Args:
@@ -459,7 +460,7 @@ class CoherentResults(SimulationResults):
         ignore_global_phase: bool = True,
         tol: float = 1e-6,
         normalize: bool = True,
-    ) -> torch.Tensor:
+    ) -> Tensor:
         """Returns the final state of the Simulation.
 
         Args:
@@ -490,7 +491,7 @@ class CoherentResults(SimulationResults):
             normalize,
         )
 
-    def _meas_projector(self, state_n: int) -> torch.Tensor:
+    def _meas_projector(self, state_n: int) -> Tensor:
         if self._meas_errors:
             err_param = (
                 self._meas_errors["epsilon"]
