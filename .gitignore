@@ -18,3 +18,4 @@ env*
 *.egg-info/
 __venv__/
 *.pyc
+.hypothesis

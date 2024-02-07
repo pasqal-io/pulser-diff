@@ -1,0 +1,52 @@
+# select autoscaled runner on AWS
+default:
+  tags:
+    - autoscaled
+
+stages:
+  - lint
+  - test
+  - publish
+  - build
+  - deploy
+
+before_script:
+  - apt-get update -y && apt-get install -y libglpk-dev glpk-utils
+  - python -m pip install --upgrade pip
+  - python -m pip install hatch
+
+lint-and-type-check:
+  stage: lint
+  script:
+    - pip install pre-commit pyproject-flake8
+    - pre-commit install
+    - pre-commit run --all-files
+
+.test:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+      variables:
+        TEST_SCRIPT: "./test_on_push.sh"
+  script:
+    - bash $TEST_SCRIPT
+  coverage: '/TOTAL.*\s+(\d+\%)$/'
+
+test-py3.9:
+  extends:
+    - .test
+  image: python:3.9
+  stage: test
+
+test-py3.10:
+  extends:
+    - .test
+  image: python:3.10
+  stage: test
+
+publish-package:
+  stage: publish
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - python -m hatch build
+    - python -m hatch publish

@@ -2,19 +2,18 @@ from __future__ import annotations
 
 from functools import partial
 from math import sqrt
-from typing import Iterator, get_args
+from typing import Iterator
 
 import torch
 from torch import Tensor
 from tqdm import tqdm as std_tqdm
 
-from pulser_diff.dq._utils import obj_type_str
 from pulser_diff.dq.time_tensor import TimeTensor
 from pulser_diff.dq.utils.tensor_types import ArrayLike
-from pulser_diff.dq.utils.utils import isket
+from pulser_diff.dq.utils.utils import isket, obj_type_str
 
 # define a default progress bar format
-PBAR_FORMAT = '|{bar}| {percentage:4.1f}% - time {elapsed}/{remaining}'
+PBAR_FORMAT = "|{bar}| {percentage:4.1f}% - time {elapsed}/{remaining}"
 
 # redefine tqdm with some default arguments
 tqdm = partial(std_tqdm, bar_format=PBAR_FORMAT)
@@ -55,8 +54,8 @@ def bexpect(O: Tensor, x: Tensor) -> Tensor:
         Tensor of shape `(..., b)` holding the operators expectation values.
     """
     if isket(x):
-        return torch.einsum('...ij,bjk,...kl->...b', x.mH, O, x)  # <x|O|x>
-    return torch.einsum('bij,...ji->...b', O, x)  # tr(Ox)
+        return torch.einsum("...ij,bjk,...kl->...b", x.mH, O, x)  # <x|O|x>
+    return torch.einsum("bij,...ji->...b", O, x)  # tr(Ox)
 
 
 def none_to_zeros_like(
@@ -106,9 +105,9 @@ def format_L(L: list[Tensor]) -> Tensor:
     if bL is None:
         L_shapes = [tuple(x.shape) for x in L]
         raise ValueError(
-            'Argument `jump_ops` should be a list of 2D arrays or 3D arrays with the'
-            ' same batch size, but got a list of arrays with incompatible shapes'
-            f' {L_shapes}.'
+            "Argument `jump_ops` should be a list of 2D arrays or 3D arrays with the"
+            " same batch size, but got a list of arrays with incompatible shapes"
+            f" {L_shapes}."
         )
 
     L = [x.expand(bL, -1, -1) for x in L]  # [(bL, n, n)]
@@ -132,6 +131,6 @@ def to_time_operator(
         return x
     else:
         raise TypeError(
-            f'Argument `{arg_name}` must be an array-like object or a `TimeTensor`, but'
-            f' has type {obj_type_str(x)}.'
+            f"Argument `{arg_name}` must be an array-like object or a `TimeTensor`, but"
+            f" has type {obj_type_str(x)}."
         )

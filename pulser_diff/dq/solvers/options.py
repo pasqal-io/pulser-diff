@@ -4,24 +4,22 @@ from typing import Any
 
 import torch
 
-from pulser_diff.dq._utils import to_device
+from pulser_diff.dq.utils.utils import to_device
 from pulser_diff.dq.solver import Dopri5
 from pulser_diff.dq.utils.tensor_types import dtype_complex_to_real, get_cdtype
 
 
 class Options:
     def __init__(
-        self, 
-        # gradient: Autograd | None, 
-        options: dict[str, Any] | None
+        self,
+        # gradient: Autograd | None,
+        options: dict[str, Any] | None,
     ):
-
         if options is None:
             options = {}
 
         self.solver = Dopri5()
         self.options = SharedOptions(**options)
-
 
     def __getattr__(self, name: str) -> Any:
         if name in dir(self.solver):
@@ -30,7 +28,7 @@ class Options:
             return getattr(self.options, name)
         else:
             raise AttributeError(
-                f'Attribute `{name}` not found in `{type(self).__name__}`.'
+                f"Attribute `{name}` not found in `{type(self).__name__}`."
             )
 
 

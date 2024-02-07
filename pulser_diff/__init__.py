@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Classes for classical emulation of a Sequence."""
+from __future__ import annotations
 
-import pulser.torch
+import pulser_diff.pulser.torch
 from pulser_diff.dynamiqs_backend import DynamiqsEmulator

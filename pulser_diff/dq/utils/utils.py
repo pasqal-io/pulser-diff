@@ -5,27 +5,32 @@ from functools import reduce
 import torch
 from torch import Tensor
 
+from functools import partial, wraps
+from typing import Any
+
+from methodtools import lru_cache
+
 __all__ = [
-    'dag',
-    'mpow',
-    'trace',
-    'ptrace',
-    'tensprod',
-    'expect',
-    'norm',
-    'unit',
-    'dissipator',
-    'lindbladian',
-    'isket',
-    'isbra',
-    'isdm',
-    'isop',
-    'toket',
-    'tobra',
-    'todm',
-    'braket',
-    'overlap',
-    'fidelity',
+    "dag",
+    "mpow",
+    "trace",
+    "ptrace",
+    "tensprod",
+    "expect",
+    "norm",
+    "unit",
+    "dissipator",
+    "lindbladian",
+    "isket",
+    "isbra",
+    "isdm",
+    "isop",
+    "toket",
+    "tobra",
+    "todm",
+    "braket",
+    "overlap",
+    "fidelity",
 ]
 
 
@@ -133,22 +138,22 @@ def ptrace(x: Tensor, keep: int | tuple[int, ...], dims: tuple[int, ...]) -> Ten
     hilbert_size = x.size(-2) if isket(x) else x.size(-1)
     prod_dims = torch.prod(dims)
     if not prod_dims == hilbert_size:
-        dims_prod_str = '*'.join(str(d.item()) for d in dims) + f'={prod_dims}'
+        dims_prod_str = "*".join(str(d.item()) for d in dims) + f"={prod_dims}"
         raise ValueError(
-            'Argument `dims` must match the Hilbert space dimension of `x` of'
-            f' {hilbert_size}, but the product of its values is {dims_prod_str}.'
+            "Argument `dims` must match the Hilbert space dimension of `x` of"
+            f" {hilbert_size}, but the product of its values is {dims_prod_str}."
         )
     if torch.any(keep < 0) or torch.any(keep > len(dims) - 1):
         raise ValueError(
-            'Argument `keep` must match the Hilbert space structure specified by'
-            ' `dims`.'
+            "Argument `keep` must match the Hilbert space structure specified by"
+            " `dims`."
         )
 
     # sort keep
     keep = keep.sort()[0]
 
     # create einsum alphabet
-    alphabet = list('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
+    alphabet = list("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
     # compute einsum equations
     eq1 = alphabet[:ndims]  # e.g. 'abc'
@@ -159,16 +164,16 @@ def ptrace(x: Tensor, keep: int | tuple[int, ...], dims: tuple[int, ...]) -> Ten
     batch_dims = x.shape[:-2]
     if isket(x) or isbra(x):
         x = x.view(-1, *dims)  # e.g. (..., 20, 2, 5)
-        eq = ''.join(['...'] + eq1 + [',...'] + eq2)  # e.g. '...abc,...ade'
+        eq = "".join(["..."] + eq1 + [",..."] + eq2)  # e.g. '...abc,...ade'
         x = torch.einsum(eq, x, x.conj())  # e.g. (..., 2, 5, 2, 5)
     elif isdm(x):
         x = x.view(-1, *dims, *dims)  # e.g. (..., 20, 2, 5, 20, 2, 5)
-        eq = ''.join(['...'] + eq1 + eq2)  # e.g. '...abcade'
+        eq = "".join(["..."] + eq1 + eq2)  # e.g. '...abcade'
         x = torch.einsum(eq, x)  # e.g. (..., 2, 5, 2, 5)
     else:
         raise ValueError(
-            'Argument `x` must be a ket, bra or density matrix, but has shape'
-            f' {tuple(x.shape)}.'
+            "Argument `x` must be a ket, bra or density matrix, but has shape"
+            f" {tuple(x.shape)}."
         )
 
     # reshape to final dimension
@@ -213,9 +218,9 @@ def _bkron(x: Tensor, y: Tensor) -> Tensor:
     y_type = _quantum_type(y)
     if x_type != y_type:
         raise ValueError(
-            'Arguments `x` and `y` have incompatible quantum types for tensor product:'
-            f' `x` is a {x_type} with shape {tuple(x.shape)}, but  `y` is a {y_type}'
-            f' with shape {tuple(y.shape)}.'
+            "Arguments `x` and `y` have incompatible quantum types for tensor product:"
+            f" `x` is a {x_type} with shape {tuple(x.shape)}, but  `y` is a {y_type}"
+            f" with shape {tuple(y.shape)}."
         )
 
     # x: (..., x1, x2)
@@ -267,15 +272,15 @@ def expect(O: Tensor, x: Tensor) -> Tensor:
         tensor(4.000+0.j)
     """
     if isket(x):
-        return torch.einsum('...ij,jk,...kl->...', x.mH, O, x)  # <x|O|x>
+        return torch.einsum("...ij,jk,...kl->...", x.mH, O, x)  # <x|O|x>
     elif isbra(x):
-        return torch.einsum('...ij,jk,...kl->...', x, O, x.mH)
+        return torch.einsum("...ij,jk,...kl->...", x, O, x.mH)
     elif isdm(x):
-        return torch.einsum('ij,...ji->...', O, x)  # tr(Ox)
+        return torch.einsum("ij,...ji->...", O, x)  # tr(Ox)
     else:
         raise ValueError(
-            'Argument `x` must be a ket, bra or density matrix, but has shape'
-            f' {tuple(x.shape)}.'
+            "Argument `x` must be a ket, bra or density matrix, but has shape"
+            f" {tuple(x.shape)}."
         )
 
 
@@ -311,8 +316,8 @@ def norm(x: Tensor) -> Tensor:
         return trace(x).real
     else:
         raise ValueError(
-            'Argument `x` must be a ket, bra or density matrix, but has shape'
-            f' {tuple(x.shape)}.'
+            "Argument `x` must be a ket, bra or density matrix, but has shape"
+            f" {tuple(x.shape)}."
         )
 
 
@@ -487,15 +492,15 @@ def isop(x: Tensor) -> bool:
 def _quantum_type(x: Tensor) -> str:
     """Returns the quantum type of a tensor."""
     if isket(x):
-        return 'ket'
+        return "ket"
     elif isbra(x):
-        return 'bra'
+        return "bra"
     elif isdm(x):
-        return 'density matrix'
+        return "density matrix"
     else:
         raise ValueError(
-            'Argument `x` must be a ket, bra or density matrix, but has shape'
-            f' {tuple(x.shape)}.'
+            "Argument `x` must be a ket, bra or density matrix, but has shape"
+            f" {tuple(x.shape)}."
         )
 
 
@@ -523,7 +528,7 @@ def toket(x: Tensor) -> Tensor:
         return x
     else:
         raise ValueError(
-            f'Argument `x` must be a ket or bra, but has shape {tuple(x.shape)}.'
+            f"Argument `x` must be a ket or bra, but has shape {tuple(x.shape)}."
         )
 
 
@@ -551,7 +556,7 @@ def tobra(x: Tensor) -> Tensor:
         return x.mH
     else:
         raise ValueError(
-            f'Argument `x` must be a ket or bra, but has shape {tuple(x.shape)}.'
+            f"Argument `x` must be a ket or bra, but has shape {tuple(x.shape)}."
         )
 
 
@@ -584,8 +589,8 @@ def todm(x: Tensor) -> Tensor:
         return x
     else:
         raise ValueError(
-            'Argument `x` must be a ket, bra or density matrix, but has shape'
-            f' {tuple(x.shape)}.'
+            "Argument `x` must be a ket, bra or density matrix, but has shape"
+            f" {tuple(x.shape)}."
         )
 
 
@@ -606,9 +611,9 @@ def braket(x: Tensor, y: Tensor) -> Tensor:
         tensor(0.707+0.j)
     """
     if not isket(x):
-        raise ValueError(f'Argument `x` must be a ket but has shape {tuple(x.shape)}.')
+        raise ValueError(f"Argument `x` must be a ket but has shape {tuple(x.shape)}.")
     if not isket(y):
-        raise ValueError(f'Argument `y` must be a ket but has shape {tuple(y.shape)}.')
+        raise ValueError(f"Argument `y` must be a ket but has shape {tuple(y.shape)}.")
 
     return (x.mH @ y).squeeze(-2, -1)
 
@@ -642,13 +647,13 @@ def overlap(x: Tensor, y: Tensor) -> Tensor:
     """
     if not isket(x) and not isdm(x):
         raise ValueError(
-            'Argument `x` must be a ket or density matrix, but has shape'
-            f' {tuple(x.shape)}.'
+            "Argument `x` must be a ket or density matrix, but has shape"
+            f" {tuple(x.shape)}."
         )
     if not isket(y) and not isdm(y):
         raise ValueError(
-            'Argument `y` must be a ket or density matrix, but has shape'
-            f' {tuple(y.shape)}.'
+            "Argument `y` must be a ket or density matrix, but has shape"
+            f" {tuple(y.shape)}."
         )
 
     if isket(x) and isket(y):
@@ -735,3 +740,141 @@ def _sqrtm(x: Tensor) -> Tensor:
     threshold = L.max(-1).values * L.size(-1) * torch.finfo(L.dtype).eps
     L = L.where(L > threshold.unsqueeze(-1), zero)  # zero out small components
     return (Q * L.sqrt().unsqueeze(-2)) @ Q.mH
+
+
+def type_str(type: Any) -> str:
+    if type.__module__ in ("builtins", "__main__"):
+        return f"`{type.__name__}`"
+    else:
+        return f"`{type.__module__}.{type.__name__}`"
+
+
+def obj_type_str(x: Any) -> str:
+    return type_str(type(x))
+
+
+def to_device(device: str | torch.device | None) -> torch.device:
+    if device is None:
+        torch_device = torch.ones(1).device  # default device
+    elif isinstance(device, str):
+        torch_device = torch.device(device)
+    elif isinstance(device, torch.device):
+        torch_device = device
+    else:
+        raise TypeError(
+            "Argument `device` must be a string, a `torch.device` or `None` but has"
+            f" type {obj_type_str(device)}."
+        )
+
+    if torch_device.type == "cuda" and torch_device.index is None:
+        torch_device = torch.device(
+            torch_device.type, index=torch.cuda.current_device()
+        )
+
+    return torch_device
+
+
+def hdim(x: Tensor) -> int:
+    if isket(x):
+        return x.size(-2)
+    else:
+        return x.size(-1)
+
+
+def check_time_tensor(x: Tensor, arg_name: str, allow_empty=False):
+    # check that a time tensor is valid (it must be a 1D tensor sorted in strictly
+    # ascending order and containing only positive values)
+    if x.ndim != 1:
+        raise ValueError(
+            f"Argument `{arg_name}` must be a 1D tensor, but is a {x.ndim}D tensor."
+        )
+    if not allow_empty and len(x) == 0:
+        raise ValueError(f"Argument `{arg_name}` must contain at least one element.")
+    if not torch.all(torch.diff(x) > 0):
+        raise ValueError(
+            f"Argument `{arg_name}` must be sorted in strictly ascending order."
+        )
+    if not torch.all(x >= 0):
+        raise ValueError(f"Argument `{arg_name}` must contain positive values only.")
+
+
+def cache(func=None, *, maxsize: int = 1):
+    """Cache a function returning a tensor by memoizing its most recent calls.
+
+    This decorator extends `methodtools.lru_cache` to also cache a function on
+    PyTorch grad mode status (enabled or disabled). This prevents cached tensors
+    detached from the graph (for example computed within a `with torch.no_grad()`
+    block) from being used by mistake by later code which requires tensors attached
+    to the graph.
+
+    By default, the cache size is `1`, which means that only the most recent call is
+    cached. Use the `maxsize` keyword argument to change the maximum cache size.
+
+    Warning:
+        This decorator should only be used for PyTorch tensors.
+
+    Example:
+        >>> @cache
+        ... def square(x: Tensor) -> Tensor:
+        ...     print('compute square')
+        ...     return x**2
+        ...
+        >>> x = torch.tensor([1, 2, 3])
+        >>> square(x)
+        compute square
+        tensor([1, 4, 9])
+        >>> square(x)
+        tensor([1, 4, 9])
+        >>> with torch.no_grad():
+        ...     print(square(x))
+        ...     print(square(x))
+        ...
+        compute square
+        tensor([1, 4, 9])
+        tensor([1, 4, 9])
+
+        Increasing the maximum cache size:
+        >>> @cache(maxsize=2)
+        ... def square(x):
+        ...     print('compute square')
+        ...     return x**2
+        ...
+        >>> square(1)
+        compute square
+        1
+        >>> square(2)
+        compute square
+        4
+        >>> square(1)
+        1
+        >>> square(2)
+        4
+        >>> square(3)
+        compute square
+        9
+        >>> square(2)
+        4
+        >>> square(1)
+        compute square
+        1
+
+    Args:
+        func: Function returning a tensor, can take any number of arguments.
+
+    Returns:
+        Cached function.
+    """
+    if func is None:
+        return partial(cache, maxsize=maxsize)
+
+    # define a function cached on its arguments and also on PyTorch grad mode status
+    @lru_cache(maxsize=maxsize)
+    def grad_cached_func(*args, grad_enabled, **kwargs):
+        return func(*args, **kwargs)
+
+    # wrap `func` to call its modified cached version
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return grad_cached_func(*args, grad_enabled=torch.is_grad_enabled(), **kwargs)
+
+    return wrapper

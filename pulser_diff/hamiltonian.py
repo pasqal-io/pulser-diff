@@ -18,20 +18,19 @@ from __future__ import annotations
 import itertools
 from collections import defaultdict
 from collections.abc import Mapping
-from typing import Union, cast
+from functools import reduce
+from typing import Callable, Union, cast
 
 import torch
 from torch import Tensor
 
-from pulser.backend.noise_model import NoiseModel
-from pulser.devices._device_datacls import BaseDevice
-from pulser.register.base_register import QubitId
-from pulser.sampler.samples import SequenceSamples, _PulseTargetSlot
-from pulser_simulation.simconfig import SUPPORTED_NOISES, doppler_sigma
-
-from pulser_diff.utils import kron
 import pulser_diff.dq as dq
-from functools import reduce
+from pulser_diff.pulser.backend.noise_model import NoiseModel
+from pulser_diff.pulser.devices._device_datacls import BaseDevice
+from pulser_diff.pulser.register.base_register import QubitId
+from pulser_diff.pulser.sampler.samples import SequenceSamples, _PulseTargetSlot
+from pulser_diff.pulser_simulation.simconfig import SUPPORTED_NOISES, doppler_sigma
+from pulser_diff.utils import kron
 
 
 class Hamiltonian:
@@ -60,7 +59,6 @@ class Hamiltonian:
         self._qdict = qdict
         self._device = device
         self._sampling_rate = sampling_rate
-        self._dist_dict = {}
 
         # Type hints for attributes defined outside of __init__
         self.basis_name: str
@@ -70,6 +68,7 @@ class Hamiltonian:
         self.dim: int
         self._bad_atoms: dict[Union[str, int], bool] = {}
         self._doppler_detune: dict[Union[str, int], float] = {}
+        self._dist_dict: dict[str, Tensor] = {}
 
         # Define interaction
         self._interaction = "XY" if self.samples_obj._in_xy else "ising"
@@ -115,8 +114,7 @@ class Hamiltonian:
             if self.basis_name == "digital" or self.basis_name == "all":
                 # Go back to previous config
                 raise NotImplementedError(
-                    f"Cannot include {noise_type} "
-                    + "noise in digital- or all-basis."
+                    f"Cannot include {noise_type} " + "noise in digital- or all-basis."
                 )
 
         local_collapse_ops = []
@@ -135,16 +133,13 @@ class Hamiltonian:
         if "eff_noise" in config.noise_types:
             basis_check("effective")
             for id, rate in enumerate(config.eff_noise_rates):
-                local_collapse_ops.append(
-                    torch.sqrt(rate) * config.eff_noise_opers[id]
-                )
+                local_collapse_ops.append(torch.sqrt(rate) * config.eff_noise_opers[id])
 
         # Building collapse operators
         self._collapse_ops = []
         for operator in local_collapse_ops:
             self._collapse_ops += [
-                self.build_operator([(operator, [qid])])
-                for qid in self._qid_index
+                self.build_operator([(operator, [qid])]) for qid in self._qid_index
             ]
 
     def set_config(self, cfg: NoiseModel) -> None:
@@ -156,10 +151,10 @@ class Hamiltonian:
         if not isinstance(cfg, NoiseModel):
             raise ValueError(f"Object {cfg} is not a valid `NoiseModel`.")
         if len(cfg.noise_types) > 0:
-            raise NotImplementedError("Noisy simulations are not supported by pulser-diff")
-        not_supported = (
-            set(cfg.noise_types) - SUPPORTED_NOISES[self._interaction]
-        )
+            raise NotImplementedError(
+                "Noisy simulations are not supported by pulser-diff"
+            )
+        not_supported = set(cfg.noise_types) - SUPPORTED_NOISES[self._interaction]
         if not_supported:
             raise NotImplementedError(
                 f"Interaction mode '{self._interaction}' does not support "
@@ -169,10 +164,7 @@ class Hamiltonian:
             self._build_basis_and_op_matrices()
         self._build_collapse_operators(cfg)
         self._config = cfg
-        if not (
-            "SPAM" in self.config.noise_types
-            and self.config.state_prep_error > 0
-        ):
+        if not ("SPAM" in self.config.noise_types and self.config.state_prep_error > 0):
             self._bad_atoms = {qid: False for qid in self._qid_index}
         if "doppler" not in self.config.noise_types:
             self._doppler_detune = {qid: 0.0 for qid in self._qid_index}
@@ -186,8 +178,7 @@ class Hamiltonian:
             {"dephasing", "SPAM", "depolarizing", "eff_noise"}
         ):
             local_noises = (
-                "SPAM" in self.config.noise_types
-                and self.config.state_prep_error > 0
+                "SPAM" in self.config.noise_types and self.config.state_prep_error > 0
             )
         samples = self.samples_obj.to_nested_dict(all_local=local_noises)
 
@@ -201,9 +192,7 @@ class Hamiltonian:
             Taking into account, if necessary, noise effects, which are local
             and depend on the qubit's id qid.
             """
-            noise_amp_base = max(
-                0, torch.normal(1.0, self.config.amp_sigma)
-            )
+            noise_amp_base = max(0, torch.normal(1.0, self.config.amp_sigma))
             for qid in slot.targets:
                 if "doppler" in self.config.noise_types:
                     noise_det = self._doppler_detune[qid]
@@ -261,9 +250,9 @@ class Hamiltonian:
 
         for operator, qubits in operations:
             if qubits == "global":
-                return reduce(lambda a, b: a+b,
-                    [self.build_operator([(operator, [q_id])])
-                    for q_id in self._qdict]
+                return reduce(
+                    lambda a, b: a + b,
+                    [self.build_operator([(operator, [q_id])]) for q_id in self._qdict],
                 )
             else:
                 qubits_set = set(qubits)
@@ -271,8 +260,7 @@ class Hamiltonian:
                     raise ValueError("Duplicate atom ids in argument list.")
                 if not qubits_set.issubset(self._qdict.keys()):
                     raise ValueError(
-                        "Invalid qubit names: "
-                        f"{qubits_set - self._qdict.keys()}"
+                        "Invalid qubit names: " f"{qubits_set - self._qdict.keys()}"
                     )
                 if isinstance(operator, str):
                     try:
@@ -290,14 +278,8 @@ class Hamiltonian:
         Used at the start of each run. If SPAM isn't in chosen noises, all
         atoms are set to be correctly prepared.
         """
-        if (
-            "SPAM" in self.config.noise_types
-            and self.config.state_prep_error > 0
-        ):
-            dist = (
-                torch.rand(size=len(self._qid_index))
-                < self.config.state_prep_error
-            )
+        if "SPAM" in self.config.noise_types and self.config.state_prep_error > 0:
+            dist = torch.rand(size=len(self._qid_index)) < self.config.state_prep_error
             self._bad_atoms = dict(zip(self._qid_index, dist))
         if "doppler" in self.config.noise_types:
             detune = torch.normal(
@@ -362,7 +344,7 @@ class Hamiltonian:
             """
             dist: Tensor = torch.linalg.norm(self._qdict[q1] - self._qdict[q2])
             self._dist_dict[f"{q1}-{q2}"] = dist
-            U = (1.0+0.0j) * 0.5 * self._device.interaction_coeff / dist**6
+            U = (1.0 + 0.0j) * 0.5 * self._device.interaction_coeff / dist**6
             return self.build_operator([("sigma_rr", [q1, q2])]) * U
 
         def make_xy_term(q1: QubitId, q2: QubitId) -> Tensor:
@@ -375,9 +357,7 @@ class Hamiltonian:
             """
             dist = torch.linalg.norm(self._qdict[q1] - self._qdict[q2])
             coords_dim = len(self._qdict[q1])
-            mag_field = cast(Tensor, self.samples_obj._magnetic_field)[
-                :coords_dim
-            ]
+            mag_field = cast(Tensor, self.samples_obj._magnetic_field)[:coords_dim]
             mag_norm = torch.linalg.norm(mag_field)
             if mag_norm < 1e-8:
                 cosine = 0.0
@@ -392,9 +372,7 @@ class Hamiltonian:
                 * (1 - 3 * cosine**2)
                 / dist**3
             )
-            return self.build_operator(
-                [("sigma_ud", [q1]), ("sigma_du", [q2])]
-            ) * U
+            return self.build_operator([("sigma_ud", [q1]), ("sigma_du", [q2])]) * U
 
         def make_interaction_term(masked: bool = False) -> Tensor:
             if masked:
@@ -407,7 +385,12 @@ class Hamiltonian:
                     return 0.0 * self.build_operator([("I", "global")])
 
             # make interaction term
-            dipole_interaction = torch.sparse_coo_tensor([[0],[0]], [0], (2**self._size, 2**self._size), dtype=torch.complex128)
+            dipole_interaction = torch.sparse_coo_tensor(
+                [[0], [0]],
+                [0],
+                (2**self._size, 2**self._size),
+                dtype=torch.complex128,
+            )
             for q1, q2 in itertools.combinations(self._qdict.keys(), r=2):
                 if (
                     self._bad_atoms[q1]
@@ -452,9 +435,7 @@ class Hamiltonian:
                     if torch.any(coeff != 0):
                         # Build once global operators as they are needed
                         if op_id not in operators:
-                            operators[op_id] = self.build_operator(
-                                [(op_id, "global")]
-                            )
+                            operators[op_id] = self.build_operator([(op_id, "global")])
                         terms.append(
                             [
                                 operators[op_id],
@@ -466,9 +447,7 @@ class Hamiltonian:
                     if q_id not in operators:
                         operators[q_id] = {}
                     coeffs = [
-                        0.5
-                        * samples_q["amp"]
-                        * torch.exp(-1j * samples_q["phase"]),
+                        0.5 * samples_q["amp"] * torch.exp(-1j * samples_q["phase"]),
                         -0.5 * samples_q["det"],
                     ]
                     for coeff, op_id in zip(coeffs, op_ids):
@@ -493,10 +472,7 @@ class Hamiltonian:
         if self.basis_name != "digital" and effective_size > 1:
             # Build time-dependent or time-independent interaction term based
             # on whether an SLM mask was defined or not
-            if (
-                self.samples_obj._slm_mask.end > 0
-                and self._interaction == "XY"
-            ):
+            if self.samples_obj._slm_mask.end > 0 and self._interaction == "XY":
                 # Build an array of binary coefficients for the interaction
                 # term of unmasked qubits
                 coeff = torch.ones(self._duration - 1)
@@ -532,7 +508,7 @@ class Hamiltonian:
         ham = self.build_ham_tensor(qobj_list)
         self._hamiltonian = ham
 
-    def build_ham_tensor(self, qobj_list):
+    def build_ham_tensor(self, qobj_list: list) -> Callable:
         # get interaction, amplitude and detuning components
         int_mat = qobj_list[0]
         amp_matrices = []
@@ -544,7 +520,7 @@ class Hamiltonian:
             if torch.equal(mat.indices()[0], mat.indices()[1]):
                 # is diagonal - detuning part
                 det_matrices.append(mat)
-                det_values.append((1.0+0.0j) * qobj_list[i][1])
+                det_values.append((1.0 + 0.0j) * qobj_list[i][1])
             else:
                 # not diagonal - ampplitude part
                 amp_matrices.append(mat)
@@ -554,24 +530,30 @@ class Hamiltonian:
         dt = 0.001 / self._sampling_rate
         n_samples = len(amp_values[0])
 
-        def H_t(t):
+        def H_t(t: float | Tensor) -> Tensor:
             # make sure that time is a tensor
             if not isinstance(t, Tensor):
                 t = torch.tensor(t)
 
             # calculate time indices for interpolation
-            t_idx1 = max(int(min(torch.floor(t/dt), n_samples-2)), 0)
-            t_idx2 = min(t_idx1 + 1, n_samples-1)
+            t_idx1 = max(int(min(torch.floor(t / dt), n_samples - 2)), 0)
+            t_idx2 = min(t_idx1 + 1, n_samples - 1)
 
             # construct Hamiltonian
             ham = 2 * int_mat
             for det_mat, det_val in zip(det_matrices, det_values):
-                det = det_val[t_idx1] + (det_val[t_idx2] - det_val[t_idx1]) * (t - t_idx1 * dt) / dt
+                det = (
+                    det_val[t_idx1]
+                    + (det_val[t_idx2] - det_val[t_idx1]) * (t - t_idx1 * dt) / dt
+                )
                 ham += (det_mat + det_mat.adjoint()) * det
             for amp_mat, amp_val in zip(amp_matrices, amp_values):
-                amp = amp_val[t_idx1] + (amp_val[t_idx2] - amp_val[t_idx1]) * (t - t_idx1 * dt) / dt
+                amp = (
+                    amp_val[t_idx1]
+                    + (amp_val[t_idx2] - amp_val[t_idx1]) * (t - t_idx1 * dt) / dt
+                )
                 ham += (amp_mat + amp_mat.adjoint()) * amp
 
             return ham
-        
+
         return H_t
