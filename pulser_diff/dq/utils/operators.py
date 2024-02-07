@@ -7,28 +7,27 @@ from typing import get_args
 import torch
 from torch import Tensor
 
-from pulser_diff.dq._utils import to_device
 from pulser_diff.dq.utils.tensor_types import ArrayLike, Number, get_cdtype, to_tensor
-from pulser_diff.dq.utils.utils import tensprod
+from pulser_diff.dq.utils.utils import tensprod, to_device
 
 __all__ = [
-    'eye',
-    'zero',
-    'destroy',
-    'create',
-    'number',
-    'parity',
-    'displace',
-    'squeeze',
-    'quadrature',
-    'position',
-    'momentum',
-    'sigmax',
-    'sigmay',
-    'sigmaz',
-    'sigmap',
-    'sigmam',
-    'hadamard',
+    "eye",
+    "zero",
+    "destroy",
+    "create",
+    "number",
+    "parity",
+    "displace",
+    "squeeze",
+    "quadrature",
+    "position",
+    "momentum",
+    "sigmax",
+    "sigmay",
+    "sigmaz",
+    "sigmap",
+    "sigmam",
+    "hadamard",
 ]
 
 

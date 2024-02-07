@@ -2,7 +2,6 @@ from __future__ import annotations
 
 
 class _ODEAdaptiveStep:
-
     def __init__(
         self,
         *,
@@ -23,4 +22,3 @@ class _ODEAdaptiveStep:
 
 class Dopri5(_ODEAdaptiveStep):
     pass
-

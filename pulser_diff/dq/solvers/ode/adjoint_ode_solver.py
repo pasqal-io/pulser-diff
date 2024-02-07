@@ -9,9 +9,9 @@ from torch import Tensor
 from torch.autograd.function import FunctionCtx, once_differentiable
 from tqdm.std import TqdmWarning
 
+from pulser_diff.dq.solvers.ode.ode_solver import ODESolver
 from pulser_diff.dq.solvers.solver import AdjointSolver
 from pulser_diff.dq.solvers.utils.utils import tqdm
-from pulser_diff.dq.solvers.ode.ode_solver import ODESolver
 
 
 class AdjointODESolver(ODESolver, AdjointSolver):
@@ -143,7 +143,7 @@ class AdjointAutograd(torch.autograd.Function):
 
         # close progress bar
         with warnings.catch_warnings():  # ignore tqdm precision overflow
-            warnings.simplefilter('ignore', TqdmWarning)
+            warnings.simplefilter("ignore", TqdmWarning)
             solver.pbar.close()
 
         # convert gradients of real-valued parameters to real-valued gradients

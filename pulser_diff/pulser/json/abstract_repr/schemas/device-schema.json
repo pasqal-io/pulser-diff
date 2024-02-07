@@ -1,0 +1,1555 @@
+{
+  "$id": "device-schema.json",
+  "$ref": "#/definitions/Device",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ChannelId": {
+      "description": "Hardware channel ID in the Device.",
+      "type": "string"
+    },
+    "DMMChannel": {
+      "additionalProperties": false,
+      "description": "A DMM channel that can be physical or virtual.",
+      "properties": {
+        "addressing": {
+          "const": "Global",
+          "type": "string"
+        },
+        "basis": {
+          "const": "ground-rydberg",
+          "description": "The addressed basis name.",
+          "type": "string"
+        },
+        "bottom_detuning": {
+          "description": "Minimum possible detuning per trap (in rad/µs), must be below zero.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "clock_period": {
+          "description": "The duration of a clock cycle (in ns).",
+          "type": "number"
+        },
+        "eom_config": {
+          "description": "Configuration of an associated EOM.",
+          "type": "null"
+        },
+        "fixed_retarget_t": {
+          "description": "Time taken to change the target (in ns).",
+          "type": "null"
+        },
+        "id": {
+          "$ref": "#/definitions/ChannelId",
+          "description": "The identifier of the channel within its device."
+        },
+        "max_abs_detuning": {
+          "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+          "type": "null"
+        },
+        "max_amp": {
+          "const": 0,
+          "description": "Maximum pulse amplitude (in rad/µs).",
+          "type": "number"
+        },
+        "max_duration": {
+          "description": "The longest duration an instruction can take.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max_targets": {
+          "description": "How many atoms can be locally addressed at once by the same beam.",
+          "type": "null"
+        },
+        "min_avg_amp": {
+          "description": "The minimum average amplitude of a pulse (when not zero).",
+          "type": "number"
+        },
+        "min_duration": {
+          "description": "The shortest duration an instruction can take.",
+          "type": "number"
+        },
+        "min_retarget_interval": {
+          "description": "Minimum time required between the ends of two target instructions (in ns).",
+          "type": "null"
+        },
+        "mod_bandwidth": {
+          "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "total_bottom_detuning": {
+          "description": "Minimum possible detuning of the whole DMM channel (in rad/µs), must be below zero.",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "addressing",
+        "basis",
+        "bottom_detuning",
+        "clock_period",
+        "eom_config",
+        "fixed_retarget_t",
+        "id",
+        "max_abs_detuning",
+        "max_amp",
+        "max_duration",
+        "max_targets",
+        "min_duration",
+        "min_retarget_interval",
+        "mod_bandwidth"
+      ],
+      "type": "object"
+    },
+    "Device": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "$schema": {
+              "type": "string"
+            },
+            "channels": {
+              "description": "The available channels on the device.",
+              "items": {
+                "$ref": "#/definitions/PhysicalChannel"
+              },
+              "type": "array"
+            },
+            "dimensions": {
+              "description": "The maximum dimension of the supported trap arrays.",
+              "enum": [
+                2,
+                3
+              ],
+              "type": "number"
+            },
+            "dmm_objects": {
+              "description": "The DMM subclass instances specifying each channel in the device.",
+              "items": {
+                "$ref": "#/definitions/PhysicalDMMChannel"
+              },
+              "type": "array"
+            },
+            "interaction_coeff_xy": {
+              "description": "Coefficient setting the interaction stregth between atoms in different Rydberg states. Needed only if the device has a Microwave channel (otherwise can be null).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "is_virtual": {
+              "const": false,
+              "description": "Marks the device as physical (ie non-virtual).",
+              "type": "boolean"
+            },
+            "max_atom_num": {
+              "description": "Maximum number of atoms supported.",
+              "type": "number"
+            },
+            "max_layout_filling": {
+              "description": "The largest fraction of a layout that can be filled with atoms.",
+              "type": "number"
+            },
+            "max_radial_distance": {
+              "description": "Maximum distance an atom can be from the center of the array (in µm).",
+              "type": "number"
+            },
+            "max_runs": {
+              "description": "The maximum number of runs allowed on the device. Only used for backend execution.",
+              "type": "number"
+            },
+            "max_sequence_duration": {
+              "description": "The maximum allowed duration for a sequence (in ns).",
+              "type": "number"
+            },
+            "min_atom_distance": {
+              "description": "The closest together two atoms can be (in μm).",
+              "type": "number"
+            },
+            "name": {
+              "description": "A unique name for the device.",
+              "type": "string"
+            },
+            "pre_calibrated_layouts": {
+              "description": "Register layouts already calibrated on the device.",
+              "items": {
+                "$ref": "#/definitions/Layout"
+              },
+              "type": "array"
+            },
+            "reusable_channels": {
+              "const": false,
+              "description": "Whether each channel can be declared multiple times on the same pulse sequence.",
+              "type": "boolean"
+            },
+            "rydberg_level": {
+              "description": "The principal quantum number of the used Rydberg level.",
+              "type": "number"
+            },
+            "supports_slm_mask": {
+              "description": "Whether the device has an SLM mask.",
+              "type": "boolean"
+            },
+            "version": {
+              "const": "1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "channels",
+            "dimensions",
+            "interaction_coeff_xy",
+            "is_virtual",
+            "max_atom_num",
+            "max_layout_filling",
+            "max_radial_distance",
+            "min_atom_distance",
+            "name",
+            "pre_calibrated_layouts",
+            "reusable_channels",
+            "rydberg_level",
+            "supports_slm_mask",
+            "version"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "$schema": {
+              "type": "string"
+            },
+            "channels": {
+              "description": "The available channels on the device.",
+              "items": {
+                "$ref": "#/definitions/GenericChannel"
+              },
+              "type": "array"
+            },
+            "dimensions": {
+              "description": "The maximum dimension of the supported trap arrays.",
+              "enum": [
+                2,
+                3
+              ],
+              "type": "number"
+            },
+            "dmm_objects": {
+              "description": "The DMM subclass instances specifying each channel in the device.",
+              "items": {
+                "$ref": "#/definitions/DMMChannel"
+              },
+              "type": "array"
+            },
+            "interaction_coeff_xy": {
+              "description": "Coefficient setting the interaction stregth between atoms in different Rydberg states. Needed only if the device has a Microwave channel (otherwise can be null).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "is_virtual": {
+              "const": true,
+              "description": "Marks the device as virtual.",
+              "type": "boolean"
+            },
+            "max_atom_num": {
+              "description": "Maximum number of atoms supported.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_layout_filling": {
+              "description": "The largest fraction of a layout that can be filled with atoms.",
+              "type": "number"
+            },
+            "max_radial_distance": {
+              "description": "Maximum distance an atom can be from the center of the array (in µm).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_runs": {
+              "description": "The maximum number of runs allowed on the device. Only used for backend execution.",
+              "type": "number"
+            },
+            "max_sequence_duration": {
+              "description": "The maximum allowed duration for a sequence (in ns).",
+              "type": "number"
+            },
+            "min_atom_distance": {
+              "description": "The closest together two atoms can be (in μm).",
+              "type": "number"
+            },
+            "name": {
+              "description": "A unique name for the device.",
+              "type": "string"
+            },
+            "reusable_channels": {
+              "description": "Whether each channel can be declared multiple times on the same pulse sequence.",
+              "type": "boolean"
+            },
+            "rydberg_level": {
+              "description": "The principal quantum number of the used Rydberg level.",
+              "type": "number"
+            },
+            "supports_slm_mask": {
+              "description": "Whether the device has an SLM mask.",
+              "type": "boolean"
+            },
+            "version": {
+              "const": "1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "channels",
+            "dimensions",
+            "interaction_coeff_xy",
+            "is_virtual",
+            "max_atom_num",
+            "max_layout_filling",
+            "max_radial_distance",
+            "min_atom_distance",
+            "name",
+            "reusable_channels",
+            "rydberg_level",
+            "supports_slm_mask",
+            "version"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "GenericChannel": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Global",
+              "type": "string"
+            },
+            "basis": {
+              "const": "ground-rydberg",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/definitions/RydbergEOM"
+                }
+              ],
+              "description": "Configuration of an associated EOM."
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "null"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "null"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "null"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Global",
+              "type": "string"
+            },
+            "basis": {
+              "const": "digital",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "null"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "null"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "null"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Global",
+              "type": "string"
+            },
+            "basis": {
+              "const": "XY",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "null"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "null"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "null"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Local",
+              "type": "string"
+            },
+            "basis": {
+              "const": "ground-rydberg",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/definitions/RydbergEOM"
+                }
+              ],
+              "description": "Configuration of an associated EOM."
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "number"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Local",
+              "type": "string"
+            },
+            "basis": {
+              "const": "digital",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "number"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Local",
+              "type": "string"
+            },
+            "basis": {
+              "const": "XY",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "number"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "A Channel that can be physical or virtual."
+    },
+    "Layout": {
+      "$ref": "layout-schema.json"
+    },
+    "PhysicalChannel": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Global",
+              "type": "string"
+            },
+            "basis": {
+              "const": "ground-rydberg",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/definitions/RydbergEOM"
+                }
+              ],
+              "description": "Configuration of an associated EOM."
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "null"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": "number"
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": "number"
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": "number"
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "null"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "null"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Global",
+              "type": "string"
+            },
+            "basis": {
+              "const": "digital",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "null"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": "number"
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": "number"
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": "number"
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "null"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "null"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Global",
+              "type": "string"
+            },
+            "basis": {
+              "const": "XY",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "null"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": "number"
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": "number"
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": "number"
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "null"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "null"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Local",
+              "type": "string"
+            },
+            "basis": {
+              "const": "ground-rydberg",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/definitions/RydbergEOM"
+                }
+              ],
+              "description": "Configuration of an associated EOM."
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": "number"
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": "number"
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": "number"
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "number"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "number"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Local",
+              "type": "string"
+            },
+            "basis": {
+              "const": "digital",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": "number"
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": "number"
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": "number"
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "number"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "number"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "addressing": {
+              "const": "Local",
+              "type": "string"
+            },
+            "basis": {
+              "const": "XY",
+              "description": "The addressed basis name.",
+              "type": "string"
+            },
+            "clock_period": {
+              "description": "The duration of a clock cycle (in ns).",
+              "type": "number"
+            },
+            "eom_config": {
+              "description": "Configuration of an associated EOM.",
+              "type": "null"
+            },
+            "fixed_retarget_t": {
+              "description": "Time taken to change the target (in ns).",
+              "type": "number"
+            },
+            "id": {
+              "$ref": "#/definitions/ChannelId",
+              "description": "The identifier of the channel within its device."
+            },
+            "max_abs_detuning": {
+              "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+              "type": "number"
+            },
+            "max_amp": {
+              "description": "Maximum pulse amplitude (in rad/µs).",
+              "type": "number"
+            },
+            "max_duration": {
+              "description": "The longest duration an instruction can take.",
+              "type": "number"
+            },
+            "max_targets": {
+              "description": "How many atoms can be locally addressed at once by the same beam.",
+              "type": "number"
+            },
+            "min_avg_amp": {
+              "description": "The minimum average amplitude of a pulse (when not zero).",
+              "type": "number"
+            },
+            "min_duration": {
+              "description": "The shortest duration an instruction can take.",
+              "type": "number"
+            },
+            "min_retarget_interval": {
+              "description": "Minimum time required between the ends of two target instructions (in ns).",
+              "type": "number"
+            },
+            "mod_bandwidth": {
+              "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "addressing",
+            "basis",
+            "clock_period",
+            "eom_config",
+            "fixed_retarget_t",
+            "id",
+            "max_abs_detuning",
+            "max_amp",
+            "max_duration",
+            "max_targets",
+            "min_duration",
+            "min_retarget_interval",
+            "mod_bandwidth"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "PhysicalDMMChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "addressing": {
+          "const": "Global",
+          "type": "string"
+        },
+        "basis": {
+          "const": "ground-rydberg",
+          "description": "The addressed basis name.",
+          "type": "string"
+        },
+        "bottom_detuning": {
+          "description": "Minimum possible detuning per trap (in rad/µs), must be below zero.",
+          "type": "number"
+        },
+        "clock_period": {
+          "description": "The duration of a clock cycle (in ns).",
+          "type": "number"
+        },
+        "eom_config": {
+          "description": "Configuration of an associated EOM.",
+          "type": "null"
+        },
+        "fixed_retarget_t": {
+          "description": "Time taken to change the target (in ns).",
+          "type": "null"
+        },
+        "id": {
+          "$ref": "#/definitions/ChannelId",
+          "description": "The identifier of the channel within its device."
+        },
+        "max_abs_detuning": {
+          "description": "Maximum possible detuning (in rad/µs), in absolute value.",
+          "type": "null"
+        },
+        "max_amp": {
+          "const": 0,
+          "description": "Maximum pulse amplitude (in rad/µs).",
+          "type": "number"
+        },
+        "max_duration": {
+          "description": "The longest duration an instruction can take.",
+          "type": "number"
+        },
+        "max_targets": {
+          "description": "How many atoms can be locally addressed at once by the same beam.",
+          "type": "null"
+        },
+        "min_avg_amp": {
+          "description": "The minimum average amplitude of a pulse (when not zero).",
+          "type": "number"
+        },
+        "min_duration": {
+          "description": "The shortest duration an instruction can take.",
+          "type": "number"
+        },
+        "min_retarget_interval": {
+          "description": "Minimum time required between the ends of two target instructions (in ns).",
+          "type": "null"
+        },
+        "mod_bandwidth": {
+          "description": "The modulation bandwidth at -3dB (50% reduction), in MHz.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "total_bottom_detuning": {
+          "description": "Minimum possible detuning of the whole DMM channel (in rad/µs), must be below zero.",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "addressing",
+        "basis",
+        "bottom_detuning",
+        "clock_period",
+        "eom_config",
+        "fixed_retarget_t",
+        "id",
+        "max_abs_detuning",
+        "max_amp",
+        "max_duration",
+        "max_targets",
+        "min_duration",
+        "min_retarget_interval",
+        "mod_bandwidth"
+      ],
+      "type": "object"
+    },
+    "RydbergBeam": {
+      "enum": [
+        "RED",
+        "BLUE"
+      ],
+      "type": "string"
+    },
+    "RydbergEOM": {
+      "additionalProperties": false,
+      "properties": {
+        "controlled_beams": {
+          "description": "The beams that can be switched on/off with an EOM.",
+          "items": {
+            "$ref": "#/definitions/RydbergBeam"
+          },
+          "type": "array"
+        },
+        "custom_buffer_time": {
+          "description": "A custom wait time to enforce during EOM buffers.",
+          "type": "number"
+        },
+        "intermediate_detuning": {
+          "description": "The detuning between the two beams, in rad/µs.",
+          "type": "number"
+        },
+        "limiting_beam": {
+          "$ref": "#/definitions/RydbergBeam",
+          "description": "The beam with the smallest amplitude range."
+        },
+        "max_limiting_amp": {
+          "description": "The maximum amplitude the limiting beam can reach, in rad/µs.",
+          "type": "number"
+        },
+        "mod_bandwidth": {
+          "description": "The EOM modulation bandwidth at -3dB (50% reduction), in MHz.",
+          "type": "number"
+        },
+        "multiple_beam_control": {
+          "description": "Whether both EOMs can be used simultaneously or not.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mod_bandwidth",
+        "limiting_beam",
+        "max_limiting_amp",
+        "intermediate_detuning",
+        "controlled_beams"
+      ],
+      "type": "object"
+    }
+  }
+}

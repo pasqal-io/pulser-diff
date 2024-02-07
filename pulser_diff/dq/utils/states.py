@@ -10,7 +10,7 @@ from pulser_diff.dq.utils.operators import displace
 from pulser_diff.dq.utils.tensor_types import ArrayLike, Number, get_cdtype, to_tensor
 from pulser_diff.dq.utils.utils import tensprod, todm
 
-__all__ = ['fock', 'fock_dm', 'basis', 'basis_dm', 'coherent', 'coherent_dm']
+__all__ = ["fock", "fock_dm", "basis", "basis_dm", "coherent", "coherent_dm"]
 
 
 def fock(
@@ -49,8 +49,8 @@ def fock(
     number = (number,) if isinstance(number, int) else number
     if len(dim) != len(number):
         raise ValueError(
-            'Arguments `number` must have the same length as `dim` of length'
-            f' {len(dim)}, but has length {len(number)}.'
+            "Arguments `number` must have the same length as `dim` of length"
+            f" {len(dim)}, but has length {len(number)}."
         )
 
     # compute the required basis state
@@ -165,13 +165,13 @@ def coherent(
         alpha = alpha.unsqueeze(-1)
     elif alpha.ndim > 1:
         raise ValueError(
-            'Argument `alpha` must be a 0-D or 1-D array-like object, but is'
-            f' a {alpha.ndim}-D object.'
+            "Argument `alpha` must be a 0-D or 1-D array-like object, but is"
+            f" a {alpha.ndim}-D object."
         )
     if len(dim) != len(alpha):
         raise ValueError(
-            'Arguments `alpha` must have the same length as `dim` of length'
-            f' {len(dim)}, but has length {len(alpha)}.'
+            "Arguments `alpha` must have the same length as `dim` of length"
+            f" {len(dim)}, but has length {len(alpha)}."
         )
 
     kets = [

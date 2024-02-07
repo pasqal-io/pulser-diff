@@ -6,10 +6,10 @@ from time import time
 import torch
 from torch import Tensor
 
-from pulser_diff.dq.time_tensor import TimeTensor
 from pulser_diff.dq.solvers.options import Options
 from pulser_diff.dq.solvers.result import Result
 from pulser_diff.dq.solvers.utils.utils import bexpect, iteraxis
+from pulser_diff.dq.time_tensor import TimeTensor
 
 
 class Solver(ABC):
@@ -124,4 +124,3 @@ class AutogradSolver(Solver):
 class AdjointSolver(AutogradSolver):
     def _run(self):
         super()._run()
-

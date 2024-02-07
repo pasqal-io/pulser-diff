@@ -4,13 +4,13 @@ from typing import Any, get_args
 
 import torch
 
-from pulser_diff.dq._utils import check_time_tensor, obj_type_str
+from pulser_diff.dq.sesolve.adaptive import SEDormandPrince5
 from pulser_diff.dq.solvers.options import Options
 from pulser_diff.dq.solvers.result import Result
 from pulser_diff.dq.solvers.utils.utils import to_time_operator
+from pulser_diff.dq.utils.utils import check_time_tensor, obj_type_str
 from pulser_diff.dq.time_tensor import TimeTensor
 from pulser_diff.dq.utils.tensor_types import ArrayLike, to_tensor
-from pulser_diff.dq.sesolve.adaptive import SEDormandPrince5
 
 
 def sesolve(
@@ -89,8 +89,8 @@ def sesolve(
     # === check exp_ops
     if exp_ops is not None and not isinstance(exp_ops, list):
         raise TypeError(
-            'Argument `exp_ops` must be `None` or a list of array-like objects, but has'
-            f' type {obj_type_str(exp_ops)}.'
+            "Argument `exp_ops` must be `None` or a list of array-like objects, but has"
+            f" type {obj_type_str(exp_ops)}."
         )
 
     # === convert and batch H, y0, E
@@ -99,10 +99,10 @@ def sesolve(
     # convert and batch H
     if not isinstance(H, (*get_args(ArrayLike), TimeTensor)):
         raise TypeError(
-            'Argument `H` must be an array-like object or a `TimeTensor`, but has type'
-            f' {obj_type_str(H)}.'
+            "Argument `H` must be an array-like object or a `TimeTensor`, but has type"
+            f" {obj_type_str(H)}."
         )
-    H = to_time_operator(H, 'H', **kw)  # (bH?, n, n)
+    H = to_time_operator(H, "H", **kw)  # (bH?, n, n)
 
     # convert and batch y0
     y0 = to_tensor(psi0, **kw)  # (by?, n, 1)
@@ -111,9 +111,9 @@ def sesolve(
     E = to_tensor(exp_ops, **kw)  # (nE, n, n)
 
     # === convert tsave and init tmeas
-    kw = dict(dtype=options.rdtype, device='cpu')
+    kw = dict(dtype=options.rdtype, device="cpu")
     tsave = to_tensor(tsave, **kw)
-    check_time_tensor(tsave, arg_name='tsave')
+    check_time_tensor(tsave, arg_name="tsave")
     tmeas = torch.empty(0, **kw)
 
     # === define the solver

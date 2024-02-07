@@ -23,29 +23,27 @@ from typing import Any, Optional, Union, cast
 
 import matplotlib.pyplot as plt
 import torch
-from torch import Tensor
 from numpy.typing import ArrayLike
+from torch import Tensor
 
-import pulser.sampler as sampler
-from pulser import Sequence
-from pulser.backend.noise_model import NoiseModel
-from pulser.devices._device_datacls import BaseDevice
-from pulser.register.base_register import BaseRegister
-from pulser.result import SampledResult
-from pulser.sampler.samples import SequenceSamples
-from pulser.sequence._seq_drawer import draw_samples
-from pulser_simulation.simconfig import SimConfig
-from pulser_diff.hamiltonian import Hamiltonian
+import pulser_diff.dq as dq
+import pulser_diff.pulser.sampler as sampler
+from pulser_diff.dq.time_tensor import CallableTimeTensor
 from pulser_diff.dynamiqs_result import DynamiqsResult
+from pulser_diff.hamiltonian import Hamiltonian
+from pulser_diff.pulser import Sequence
+from pulser_diff.pulser.backend.noise_model import NoiseModel
+from pulser_diff.pulser.devices._device_datacls import BaseDevice
+from pulser_diff.pulser.register.base_register import BaseRegister
+from pulser_diff.pulser.result import SampledResult
+from pulser_diff.pulser.sampler.samples import SequenceSamples
+from pulser_diff.pulser.sequence._seq_drawer import draw_samples
+from pulser_diff.pulser_simulation.simconfig import SimConfig
 from pulser_diff.simresults import (
     CoherentResults,
     NoisyResults,
     SimulationResults,
 )
-import pulser_diff.dq as dq
-from pulser_diff.dq.time_tensor import CallableTimeTensor
-
-from memory_profiler import profile
 
 
 class DynamiqsEmulator:
@@ -87,8 +85,7 @@ class DynamiqsEmulator:
         # Initializing the samples obj
         if not isinstance(sampled_seq, SequenceSamples):
             raise TypeError(
-                "The provided sequence has to be a valid "
-                "SequenceSamples instance."
+                "The provided sequence has to be a valid " "SequenceSamples instance."
             )
         if sampled_seq.max_duration == 0:
             raise ValueError("SequenceSamples is empty.")
@@ -97,13 +94,9 @@ class DynamiqsEmulator:
         self._register = register
         # Check compatibility of samples and device:
         if sampled_seq._slm_mask.end > 0 and not device.supports_slm_mask:
-            raise ValueError(
-                "Samples use SLM mask but device does not have one."
-            )
+            raise ValueError("Samples use SLM mask but device does not have one.")
         if not sampled_seq.used_bases <= device.supported_bases:
-            raise ValueError(
-                "Bases used in samples should be supported by device."
-            )
+            raise ValueError("Bases used in samples should be supported by device.")
         # Check compatibility of masked samples and register
         if not sampled_seq._slm_mask.targets <= set(register.qubit_ids):
             raise ValueError(
@@ -115,9 +108,9 @@ class DynamiqsEmulator:
             if sampled_seq._ch_objs[ch].addressing == "Local":
                 # Check that targets of Local Channels are defined
                 # in register
-                if not set().union(
-                    *(slot.targets for slot in ch_samples.slots)
-                ) <= set(register.qubit_ids):
+                if not set().union(*(slot.targets for slot in ch_samples.slots)) <= set(
+                    register.qubit_ids
+                ):
                     raise ValueError(
                         "The ids of qubits targeted in Local channels"
                         " should be defined in register."
@@ -146,16 +139,12 @@ class DynamiqsEmulator:
                 "less than or equal to 1."
             )
         if int(self._tot_duration * sampling_rate) < 4:
-            raise ValueError(
-                "`sampling_rate` is too small, less than 4 data points."
-            )
+            raise ValueError("`sampling_rate` is too small, less than 4 data points.")
         # Sets the config as well as builds the hamiltonian
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=DeprecationWarning)
             noise_model: NoiseModel = (
-                config.to_noise_model()
-                if config
-                else SimConfig().to_noise_model()
+                config.to_noise_model() if config else SimConfig().to_noise_model()
             )
         self._hamiltonian = Hamiltonian(
             self.samples_obj,
@@ -178,7 +167,7 @@ class DynamiqsEmulator:
         self.set_initial_state("all-ground")
 
         # create inter-qubit distance container
-        self.dist_dict = {}
+        self.dist_dict: dict[str, Tensor] = {}
 
     @property
     def sampling_times(self) -> Tensor:
@@ -221,8 +210,7 @@ class DynamiqsEmulator:
         if not isinstance(cfg, SimConfig):
             raise ValueError(f"Object {cfg} is not a valid `SimConfig`.")
         not_supported = (
-            set(cfg.noise)
-            - cfg.supported_noises[self._hamiltonian._interaction]
+            set(cfg.noise) - cfg.supported_noises[self._hamiltonian._interaction]
         )
         if not_supported:
             raise NotImplementedError(
@@ -250,8 +238,7 @@ class DynamiqsEmulator:
             raise ValueError(f"Object {config} is not a valid `SimConfig`")
 
         not_supported = (
-            set(config.noise)
-            - config.supported_noises[self._hamiltonian._interaction]
+            set(config.noise) - config.supported_noises[self._hamiltonian._interaction]
         )
         if not_supported:
             raise NotImplementedError(
@@ -310,9 +297,7 @@ class DynamiqsEmulator:
         """The initial state of the simulation."""
         return self._initial_state
 
-    def set_initial_state(
-        self, state: Tensor
-    ) -> None:
+    def set_initial_state(self, state: Tensor) -> None:
         """Sets the initial state of the simulation.
 
         Args:
@@ -352,11 +337,11 @@ class DynamiqsEmulator:
     def evaluation_times(self) -> Tensor:
         """The times at which the results of this simulation are returned."""
         return self._eval_times_array
-    
+
     @property
-    def qq_distances(self) -> list[Tensor]:
+    def qq_distances(self) -> dict[str, Tensor]:
         return self.dist_dict
-    
+
     @property
     def endtimes(self) -> list:
         from bisect import bisect_left
@@ -372,15 +357,18 @@ class DynamiqsEmulator:
 
         # get end of pulses timestamps
         for samples in self.samples_obj.samples_list:
-            end_ts += [bisect_left(remaining_indices.numpy(), sl.tf)-1 for sl in samples.slots]
-            end_ts += [bisect_left(remaining_indices.numpy(), sl.tf) for sl in samples.slots]
+            end_ts += [
+                bisect_left(remaining_indices.numpy(), sl.tf) - 1
+                for sl in samples.slots
+            ]
+            end_ts += [
+                bisect_left(remaining_indices.numpy(), sl.tf) for sl in samples.slots
+            ]
         end_ts = sorted(end_ts)
 
         return end_ts
 
-    def set_evaluation_times(
-        self, value: Union[str, ArrayLike, float]
-    ) -> None:
+    def set_evaluation_times(self, value: Union[str, ArrayLike, float]) -> None:
         """Sets times at which the results of this simulation are returned.
 
         Args:
@@ -410,9 +398,7 @@ class DynamiqsEmulator:
                 )
         elif isinstance(value, float):
             if value > 1 or value <= 0:
-                raise ValueError(
-                    "evaluation_times float must be between 0 and 1."
-                )
+                raise ValueError("evaluation_times float must be between 0 and 1.")
             indices = torch.linspace(
                 0,
                 len(self._hamiltonian.sampling_times) - 1,
@@ -429,8 +415,7 @@ class DynamiqsEmulator:
                 )
             if torch.min(value, initial=0) < 0:
                 raise ValueError(
-                    "Provided evaluation-time list contains "
-                    "negative values."
+                    "Provided evaluation-time list contains " "negative values."
                 )
             eval_times = torch.tensor(value)
         else:
@@ -440,8 +425,11 @@ class DynamiqsEmulator:
                 + "float between 0 and 1."
             )
         # Ensure 0 and final time are included:
-        self._eval_times_array = torch.cat([eval_times, 
-                                            torch.tensor([0.0, self._tot_duration / 1000])]).unique().requires_grad_(False)
+        self._eval_times_array = (
+            torch.cat([eval_times, torch.tensor([0.0, self._tot_duration / 1000])])
+            .unique()
+            .requires_grad_(False)
+        )
         self._eval_times_instruction = value
 
     def build_operator(self, operations: Union[list, tuple]) -> Tensor:
@@ -495,9 +483,7 @@ class DynamiqsEmulator:
                 f"Provided time (`time` = {time}) must be "
                 "greater than or equal to 0."
             )
-        return self._hamiltonian._hamiltonian(
-            time / 1000
-        )  # Creates new Qutip.Qobj
+        return self._hamiltonian._hamiltonian(time / 1000)  # Creates new Qutip.Qobj
 
     # Run Simulation Evolution using Qutip
     def run(
@@ -540,8 +526,16 @@ class DynamiqsEmulator:
                 for ch_sample in self.samples_obj.samples_list
                 for slot in ch_sample.slots
                 if not (
-                    torch.all(torch.isclose(ch_sample.amp[slot.ti : slot.tf], torch.tensor(0.0)))
-                    and torch.all(torch.isclose(ch_sample.det[slot.ti : slot.tf], torch.tensor(0.0)))
+                    torch.all(
+                        torch.isclose(
+                            ch_sample.amp[slot.ti : slot.tf], torch.tensor(0.0)
+                        )
+                    )
+                    and torch.all(
+                        torch.isclose(
+                            ch_sample.det[slot.ti : slot.tf], torch.tensor(0.0)
+                        )
+                    )
                 )
             ]
             if pulse_durations:
@@ -550,14 +544,10 @@ class DynamiqsEmulator:
         meas_errors: Optional[Mapping[str, float]] = None
         if "SPAM" in self.config.noise:
             meas_errors = {
-                k: self.config.spam_dict[k]
-                for k in ("epsilon", "epsilon_prime")
+                k: self.config.spam_dict[k] for k in ("epsilon", "epsilon_prime")
             }
             if self.config.eta > 0 and self.initial_state != dq.tensprod(
-                *[
-                    self._hamiltonian.basis["g"]
-                    for _ in range(self._hamiltonian._size)
-                ]
+                *[self._hamiltonian.basis["g"] for _ in range(self._hamiltonian._size)]
             ):
                 raise NotImplementedError(
                     "Can't combine state preparation errors with an initial "
@@ -580,20 +570,23 @@ class DynamiqsEmulator:
                 or "depolarizing" in self.config.noise
                 or "eff_noise" in self.config.noise
             ):
-                result = dq.mesolve(
-                    self._hamiltonian._hamiltonian,
-                    self.initial_state,
-                    self._eval_times_array,
-                    self._hamiltonian._collapse_ops,
-                    progress_bar=p_bar,
-                )
+                raise NotImplementedError("Master equation solver not implemented.")
+                # result = dq.mesolve(
+                #     self._hamiltonian._hamiltonian,
+                #     self.initial_state,
+                #     self._eval_times_array,
+                #     self._hamiltonian._collapse_ops,
+                #     progress_bar=p_bar,
+                # )
             else:
                 result = dq.sesolve(
-                    H=CallableTimeTensor(self._hamiltonian._hamiltonian, 
-                                         self._hamiltonian._hamiltonian(0.0)),
+                    H=CallableTimeTensor(  # type: ignore [abstract]
+                        self._hamiltonian._hamiltonian,
+                        self._hamiltonian._hamiltonian(0.0),
+                    ),
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
-                    options=dict(verbose=True if progress_bar else False)
+                    options=dict(verbose=True if progress_bar else False),
                 )
             results = [
                 DynamiqsResult(
@@ -626,9 +619,7 @@ class DynamiqsEmulator:
                 initial_configs = Counter(
                     "".join(
                         (
-                            torch.rand(
-                                size=len(self._hamiltonian._qid_index)
-                            )
+                            torch.rand(size=len(self._hamiltonian._qid_index))
                             < self.config.eta
                         )
                         .astype(int)
@@ -761,8 +752,7 @@ class DynamiqsEmulator:
         """
         if not isinstance(sequence, Sequence):
             raise TypeError(
-                "The provided sequence has to be a valid "
-                "pulser.Sequence instance."
+                "The provided sequence has to be a valid " "pulser.Sequence instance."
             )
         if sequence.is_parametrized() or sequence.is_register_mappable():
             raise ValueError(
@@ -771,13 +761,8 @@ class DynamiqsEmulator:
             )
         if not sequence._schedule:
             raise ValueError("The provided sequence has no declared channels.")
-        if all(
-            sequence._schedule[x][-1].tf == 0
-            for x in sequence.declared_channels
-        ):
-            raise ValueError(
-                "No instructions given for the channels in the sequence."
-            )
+        if all(sequence._schedule[x][-1].tf == 0 for x in sequence.declared_channels):
+            raise ValueError("No instructions given for the channels in the sequence.")
         if with_modulation and sequence._slm_mask_targets:
             raise NotImplementedError(
                 "Simulation of sequences combining an SLM mask and output "

@@ -12,6 +12,8 @@ license = {text = "Proprietary"}
 keywords = ["quantum", "pulser"]
 authors = [
   { name = "Vytautas Abramavicius", email = "vytautas.abramavicius@pasqal.com" },
+  { name = "Henrique Silvério", email = "henrique@pasqal.com" },
+  { name = "Antoine Cornillot", email = "antoine.cornillot@pasqal.com" }
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -25,25 +27,26 @@ classifiers = [
 # always specify a version for each package
 # to maintain consistency
 dependencies = [
-  "torch",
-  "pulser @ git@github.com:pasqal-io/Pulser.git@va/pulser-torch"
+  "torch == 2.0.1",
+  "jsonschema >= 4.17.3",
+  "referencing == 0.30.2",
+  "matplotlib < 3.8",
+  "numpy == 1.23.5",
+  "scipy == 1.10.0",
+  "qutip == 4.7.2",
+  "tqdm",
+  "methodtools"
 ]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 allow-ambiguous-features = true
 
-# add one or more extras in the dependencies
-[project.optional-dependencies]
-extras = [
-  "matplotlib>=3.5.0"
-]
-
 # install libraries from the Pasqal quantum libraries private PyPi repository
 # ask in the relevant code Slack channels if you do not have the credentials
 # to access the PyPi repository
 [tool.hatch.envs.default.env-vars]
-PIP_EXTRA_INDEX_URL = "https://{env:PYPI_USERNAME}:{env:PYPI_PASSWORD}@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple"
+# PIP_EXTRA_INDEX_URL = "https://{env:PYPI_USERNAME}:{env:PYPI_PASSWORD}@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple"
 
 [project.urls]
 Documentation = ""
@@ -70,10 +73,9 @@ dependencies = [
   "notebook<7.0",
   "dill",
 ]
-features = ["all"]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=qadence_extensions {args}"
+test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=pulser_diff {args}"
 test-examples = "pytest ./tests/test_examples.py {args}"
 test-docs = "mkdocs build --clean --strict"
 
@@ -138,6 +140,7 @@ exclude_lines = [
 select = ["E", "F", "I", "Q"]
 extend-ignore = ["F841"]
 line-length = 100
+exclude = ["pulser_diff/dq", "pulser_diff/pulser", "pulser_diff/pulser_simulation"]
 
 [tool.ruff.isort]
 required-imports = ["from __future__ import annotations"]
@@ -150,11 +153,3 @@ max-complexity = 15
 
 [tool.ruff.flake8-quotes]
 docstring-quotes = "double"
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-no_implicit_optional = false
-ignore_missing_imports = true

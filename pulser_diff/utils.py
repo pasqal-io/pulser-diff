@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 import torch
 from torch import Tensor
 
 
-def kron(*args: tuple[Tensor]) -> Tensor:
+def kron(*args: Tensor) -> Tensor:
     if not all([t.is_sparse for t in args]):
         raise ValueError("All arguments must be sparse tensors")
-    
+
     mat1: Tensor = args[0]
     if len(args) == 1:
         # return last matrix
@@ -23,7 +25,7 @@ def kron(*args: tuple[Tensor]) -> Tensor:
     new_indices = []
     new_values = []
     for idx, val in zip(mat1.indices().T, mat1.values()):
-        new_idxs = idx * size_mat2 + mat2.indices().T        
+        new_idxs = idx * size_mat2 + mat2.indices().T
         new_indices.append(new_idxs)
         new_vals = val * mat2.values()
         new_values.append(new_vals)
@@ -32,6 +34,8 @@ def kron(*args: tuple[Tensor]) -> Tensor:
     new_indices = torch.vstack(new_indices).T
     new_values = torch.hstack(new_values)
 
-    # create resulting sparse tensor 
-    mat_prod = torch.sparse_coo_tensor(new_indices, new_values, tuple(new_size)).coalesce()
+    # create resulting sparse tensor
+    mat_prod = torch.sparse_coo_tensor(
+        new_indices, new_values, tuple(new_size)
+    ).coalesce()
     return mat_prod

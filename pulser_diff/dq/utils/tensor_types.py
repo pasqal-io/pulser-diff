@@ -7,10 +7,9 @@ import torch
 from qutip import Qobj
 from torch import Tensor
 
-from pulser_diff.dq._utils import hdim, obj_type_str
-from pulser_diff.dq.utils.utils import isbra, isket, isop
+from pulser_diff.dq.utils.utils import isbra, isket, isop, hdim, obj_type_str
 
-__all__ = ['to_tensor', 'to_numpy', 'to_qutip', 'from_qutip']
+__all__ = ["to_tensor", "to_numpy", "to_qutip", "from_qutip"]
 
 Number = Union[int, float, complex]
 
@@ -35,8 +34,8 @@ def get_cdtype(
             return torch.complex64
     elif dtype not in (torch.complex64, torch.complex128):
         raise TypeError(
-            'Argument `dtype` must be `torch.complex64`, `torch.complex128` or `None`'
-            f' for a complex tensor, but is `{dtype}`.'
+            "Argument `dtype` must be `torch.complex64`, `torch.complex128` or `None`"
+            f" for a complex tensor, but is `{dtype}`."
         )
     return dtype
 
@@ -48,8 +47,8 @@ def get_rdtype(
         return torch.get_default_dtype()
     elif dtype not in (torch.float32, torch.float64):
         raise TypeError(
-            'Argument `dtype` must be `torch.float32`, `torch.float64` or `None` for'
-            f' a real-valued tensor, but is `{dtype}`.'
+            "Argument `dtype` must be `torch.float32`, `torch.float64` or `None` for"
+            f" a real-valued tensor, but is `{dtype}`."
         )
     return dtype
 
@@ -75,8 +74,8 @@ def to_device(device: str | torch.device | None) -> torch.device:
         return device
     else:
         raise TypeError(
-            f'Argument `device` ({device}) must be a string, a `torch.device` object or'
-            ' `None`.'
+            f"Argument `device` ({device}) must be a string, a `torch.device` object or"
+            " `None`."
         )
 
 
@@ -137,8 +136,8 @@ def to_tensor(
         return torch.as_tensor(x, dtype=dtype, device=device)
     else:
         raise TypeError(
-            'Argument `x` must be an array-like object or a list of array-like objects,'
-            f' but has type {obj_type_str(x)}.'
+            "Argument `x` must be an array-like object or a list of array-like objects,"
+            f" but has type {obj_type_str(x)}."
         )
 
 
@@ -187,7 +186,7 @@ def to_numpy(x: ArrayLike | list[ArrayLike]) -> np.ndarray:
         return x.full()
     else:
         raise TypeError(
-            f'Argument `x` must be an array-like object but has type {obj_type_str(x)}.'
+            f"Argument `x` must be an array-like object but has type {obj_type_str(x)}."
         )
 
 

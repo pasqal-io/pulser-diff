@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import warnings
 from abc import abstractmethod
 from typing import Any
@@ -42,7 +44,7 @@ class ODESolver(AutogradSolver):
 
         # close the progress bar
         with warnings.catch_warnings():  # ignore tqdm precision overflow
-            warnings.simplefilter('ignore', TqdmWarning)
+            warnings.simplefilter("ignore", TqdmWarning)
             self.pbar.close()
 
     @abstractmethod

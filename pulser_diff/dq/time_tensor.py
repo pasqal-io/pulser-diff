@@ -5,7 +5,7 @@ from abc import abstractmethod, abstractproperty
 import torch
 from torch import Tensor
 
-from pulser_diff.dq._utils import cache, obj_type_str, type_str
+from pulser_diff.dq.utils.utils import cache, obj_type_str, type_str
 from pulser_diff.dq.utils.tensor_types import (
     ArrayLike,
     Number,
@@ -13,7 +13,7 @@ from pulser_diff.dq.utils.tensor_types import (
     to_device,
 )
 
-__all__ = ['totime']
+__all__ = ["totime"]
 
 
 def totime(
@@ -34,12 +34,13 @@ def totime(
         return _factory_callable(x, dtype=dtype, device=device)
     else:
         raise TypeError(
-            'For time-dependent tensors, argument `x` must be one of 4 types: (1)'
-            ' ArrayLike; (2) 2-tuple with type (function, ArrayLike) where function'
-            ' has signature (t: float) -> Tensor; (3) 3-tuple with type (ArrayLike,'
-            ' ArrayLike, ArrayLike); (4) function with signature (t: float) -> Tensor.'
-            f' The provided `x` has type {obj_type_str(x)}.'
+            "For time-dependent tensors, argument `x` must be one of 4 types: (1)"
+            " ArrayLike; (2) 2-tuple with type (function, ArrayLike) where function"
+            " has signature (t: float) -> Tensor; (3) 3-tuple with type (ArrayLike,"
+            " ArrayLike, ArrayLike); (4) function with signature (t: float) -> Tensor."
+            f" The provided `x` has type {obj_type_str(x)}."
         )
+
 
 def _factory_callable(
     x: callable[[float], Tensor], *, dtype: torch.dtype, device: torch.device
@@ -49,23 +50,23 @@ def _factory_callable(
     # check type, dtype and device match
     if not isinstance(f0, Tensor):
         raise TypeError(
-            f'The time-dependent operator must be a {type_str(Tensor)}, but has'
-            f' type {obj_type_str(f0)}. The provided function must return a tensor,'
-            ' to avoid costly type conversion at each time solver step.'
+            f"The time-dependent operator must be a {type_str(Tensor)}, but has"
+            f" type {obj_type_str(f0)}. The provided function must return a tensor,"
+            " to avoid costly type conversion at each time solver step."
         )
     elif f0.dtype != dtype:
         raise TypeError(
-            f'The time-dependent operator must have dtype `{dtype}`, but has dtype'
-            f' `{f0.dtype}`. The provided function must return a tensor with the'
-            ' same `dtype` as provided to the solver, to avoid costly dtype'
-            ' conversion at each solver time step.'
+            f"The time-dependent operator must have dtype `{dtype}`, but has dtype"
+            f" `{f0.dtype}`. The provided function must return a tensor with the"
+            " same `dtype` as provided to the solver, to avoid costly dtype"
+            " conversion at each solver time step."
         )
     elif f0.device != device:
         raise TypeError(
-            f'The time-dependent operator must be on device `{device}`, but is on'
-            f' device `{f0.device}`. The provided function must return a tensor on'
-            ' the same device as provided to the solver, to avoid costly device'
-            ' transfer at each solver time step.'
+            f"The time-dependent operator must be on device `{device}`, but is on"
+            f" device `{f0.device}`. The provided function must return a tensor on"
+            " the same device as provided to the solver, to avoid costly device"
+            " transfer at each solver time step."
         )
 
     return CallableTimeTensor(x, f0)
@@ -192,27 +193,39 @@ class CallableTimeTensor(TimeTensor):
 
     @abstractmethod
     def adjoint(self) -> TimeTensor:
-        f = lambda t: self.f(t).adjoint()
+        def f(t):
+            return self.f(t).adjoint()
+
         f0 = self.f0.adjoint()
         return CallableTimeTensor(f, f0)
 
     def __neg__(self) -> TimeTensor:
-        f = lambda t: -self.f(t)
+        def f(t):
+            return -self.f(t)
+
         f0 = -self.f0
         return CallableTimeTensor(f, f0)
 
     def __mul__(self, other: Number | Tensor) -> TimeTensor:
-        f = lambda t: self.f(t) * other
+        def f(t):
+            return self.f(t) * other
+
         f0 = self.f0 * other
         return CallableTimeTensor(f, f0)
 
     def __add__(self, other: Tensor | TimeTensor) -> TimeTensor:
         if isinstance(other, Tensor):
-            f = lambda t: self.f(t) + other
+
+            def f(t):
+                return self.f(t) + other
+
             f0 = self.f0 + other
             return CallableTimeTensor(f, f0)
         elif isinstance(other, CallableTimeTensor):
-            f = lambda t: self.f(t) + other.f(t)
+
+            def f(t):
+                return self.f(t) + other.f(t)
+
             f0 = self.f0 + other.f0
             return CallableTimeTensor(f, f0)
         else:

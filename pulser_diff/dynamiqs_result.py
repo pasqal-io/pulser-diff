@@ -17,12 +17,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Union, cast
 
+import numpy as np
 import torch
 from torch import Tensor
-import numpy as np
 
-from pulser.register import QubitId
-from pulser.result import Result
+from pulser_diff.pulser.register import QubitId
+from pulser_diff.pulser.result import Result
 
 
 @dataclass
@@ -57,9 +57,7 @@ class DynamiqsResult(Result):
         full_state_size = torch.prod(torch.tensor(self.state.shape))
         if not self.state.shape[1] == 1:
             full_state_size = torch.sqrt(full_state_size)
-        return cast(
-            int, int(torch.round(full_state_size ** (1 / self._size)))
-        )
+        return cast(int, int(torch.round(full_state_size ** (1 / self._size))))
 
     @property
     def _basis_name(self) -> str:
@@ -69,9 +67,7 @@ class DynamiqsResult(Result):
             return "XY"
         if not self.matching_meas_basis:
             return (
-                "digital"
-                if self.meas_basis == "ground-rydberg"
-                else "ground-rydberg"
+                "digital" if self.meas_basis == "ground-rydberg" else "ground-rydberg"
             )
         return self.meas_basis
 
@@ -89,9 +85,7 @@ class DynamiqsResult(Result):
                 # Invert the order ->  [00, 01, 10, 11] correspondence
                 # In the XY and digital bases, the order is canonical
                 weights = (
-                    probs.flip(0)
-                    if self.meas_basis == "ground-rydberg"
-                    else probs
+                    probs.flip(0) if self.meas_basis == "ground-rydberg" else probs
                 )
             else:
                 # Only 000...000 is measured
@@ -178,8 +172,7 @@ class DynamiqsResult(Result):
             if is_density_matrix:  # pragma: no cover
                 # Not tested as noise in digital or all basis not implemented
                 raise NotImplementedError(
-                    "Reduce to basis not implemented for density matrix"
-                    " states."
+                    "Reduce to basis not implemented for density matrix" " states."
                 )
             if reduce_to_basis == "ground-rydberg":
                 ex_state = "2"

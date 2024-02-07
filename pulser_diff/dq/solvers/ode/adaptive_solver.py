@@ -7,9 +7,16 @@ from typing import Any
 import torch
 from torch import Tensor
 
-from pulser_diff.dq.solvers.utils.utils import add_tuples, hairer_norm, none_to_zeros_like
-from pulser_diff.dq.solvers.ode.adjoint_ode_solver import AdjointODESolver, new_leaf_tensor
+from pulser_diff.dq.solvers.ode.adjoint_ode_solver import (
+    AdjointODESolver,
+    new_leaf_tensor,
+)
 from pulser_diff.dq.solvers.ode.ode_solver import ODESolver
+from pulser_diff.dq.solvers.utils.utils import (
+    add_tuples,
+    hairer_norm,
+    none_to_zeros_like,
+)
 
 
 class AdaptiveSolver(ODESolver):
@@ -88,10 +95,10 @@ class AdaptiveSolver(ODESolver):
         self.step_counter += 1
         if self.step_counter == self.options.max_steps:
             raise RuntimeError(
-                'Maximum number of time steps reached in adaptive time step ODE'
-                f' solver at time t={t:.2g} (`max_steps={self.options.max_steps}`).'
-                ' This is likely due to a diverging solution. Try increasing the'
-                ' maximum number of steps, or use a different solver.'
+                "Maximum number of time steps reached in adaptive time step ODE"
+                f" solver at time t={t:.2g} (`max_steps={self.options.max_steps}`)."
+                " This is likely due to a diverging solution. Try increasing the"
+                " maximum number of steps, or use a different solver."
             )
 
     @torch.no_grad()
@@ -109,10 +116,13 @@ class AdaptiveSolver(ODESolver):
 
         See Equation (4.14) of [1] for the detailed steps. For this function, we keep
         the same notations as in the book.
-        """        
+        """
 
         sc = self.options.atol + torch.abs(y0) * self.options.rtol
-        d0, d1 = hairer_norm(y0 / sc).max().item(), hairer_norm(f0.to_dense() / sc).max().item()
+        d0, d1 = (
+            hairer_norm(y0 / sc).max().item(),
+            hairer_norm(f0.to_dense() / sc).max().item(),
+        )
 
         if d0 < 1e-5 or d1 < 1e-5:
             h0 = 1e-6

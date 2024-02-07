@@ -1,0 +1,1139 @@
+{
+  "$ref": "#/definitions/PulserSequence",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "Atom": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "$ref": "#/definitions/QubitId",
+          "description": "Name of the atom."
+        },
+        "x": {
+          "description": "x-position in µm",
+          "type": "number"
+        },
+        "y": {
+          "description": "y-position in µm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Basis": {
+      "description": "The two-level-system basis addressable by a given channel.",
+      "enum": [
+        "ground-rydberg",
+        "digital",
+        "XY"
+      ],
+      "type": "string"
+    },
+    "BlackmanMaxWaveform": {
+      "additionalProperties": false,
+      "description": "A Blackman window of a specified max value and area.",
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The integral of the waveform. Can be negative, in which case it takes the positive waveform and changes the sign of all its values."
+        },
+        "kind": {
+          "const": "blackman_max",
+          "type": "string"
+        },
+        "max_val": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform peak value."
+        }
+      },
+      "required": [
+        "kind",
+        "max_val",
+        "area"
+      ],
+      "type": "object"
+    },
+    "BlackmanWaveform": {
+      "additionalProperties": false,
+      "description": "A Blackman window of a specified duration and area.",
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The integral of the waveform. Can be negative, in which case it takes the positive waveform and changes the sign of all its values."
+        },
+        "duration": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform duration (in ns)."
+        },
+        "kind": {
+          "const": "blackman",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "duration",
+        "area"
+      ],
+      "type": "object"
+    },
+    "ChannelId": {
+      "description": "Hardware channel ID in the Device.",
+      "type": "string"
+    },
+    "ChannelName": {
+      "description": "Name of declared channel.",
+      "type": "string"
+    },
+    "CompositeWaveform": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "composite",
+          "type": "string"
+        },
+        "waveforms": {
+          "description": "List of waveforms to compose one after another, in specified order.",
+          "items": {
+            "$ref": "#/definitions/Waveform"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "waveforms"
+      ],
+      "type": "object"
+    },
+    "ConstantWaveform": {
+      "additionalProperties": false,
+      "description": "A waveform of constant value.",
+      "properties": {
+        "duration": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform duration (in ns)."
+        },
+        "kind": {
+          "const": "constant",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The constant modulation value (in rad/µs)."
+        }
+      },
+      "required": [
+        "kind",
+        "duration",
+        "value"
+      ],
+      "type": "object"
+    },
+    "CustomWaveform": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "custom",
+          "type": "string"
+        },
+        "samples": {
+          "description": "List of waveform value samples, one per timestep.",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "samples"
+      ],
+      "type": "object"
+    },
+    "Device": {
+      "$ref": "device-schema.json"
+    },
+    "ExprArgument": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "$ref": "#/definitions/VariableRef"
+        },
+        {
+          "$ref": "#/definitions/ExprBinary"
+        },
+        {
+          "$ref": "#/definitions/ExprUnary"
+        }
+      ],
+      "description": "Expression argument"
+    },
+    "ExprBinary": {
+      "additionalProperties": false,
+      "description": "Simple binary expression involving variables and constants.\n\nThe array access behaviour depends on expression:\n- index:   - the lhs array is indexed using rhs indices, resulting in an array of the same length as rhs.   - out of bounds indexing is a runtime error   - NOTE: Pulser only supports variable references on lhs of index expression.           This limitation might be lifted in the future.\n- everything else:   - the expression is applied element-wise   - operating on arrays of different lengths is a runtime error",
+      "properties": {
+        "expression": {
+          "description": "Expresion operation",
+          "enum": [
+            "add",
+            "sub",
+            "mul",
+            "div",
+            "mod",
+            "pow",
+            "index"
+          ],
+          "type": "string"
+        },
+        "lhs": {
+          "$ref": "#/definitions/ExprArgument",
+          "description": "Left-hand side of an operation"
+        },
+        "rhs": {
+          "$ref": "#/definitions/ExprArgument",
+          "description": "Right-hand side of an operation"
+        }
+      },
+      "required": [
+        "expression",
+        "lhs",
+        "rhs"
+      ],
+      "type": "object"
+    },
+    "ExprUnary": {
+      "additionalProperties": false,
+      "description": "Simple arithmetic binary expression involving variables and constants.",
+      "properties": {
+        "expression": {
+          "description": "Expresion operation",
+          "enum": [
+            "neg",
+            "abs",
+            "floor",
+            "ceil",
+            "round",
+            "sqrt",
+            "exp",
+            "log2",
+            "log",
+            "sin",
+            "cos",
+            "tan"
+          ],
+          "type": "string"
+        },
+        "lhs": {
+          "$ref": "#/definitions/ExprArgument",
+          "description": "Argument of an unary operation"
+        }
+      },
+      "required": [
+        "expression",
+        "lhs"
+      ],
+      "type": "object"
+    },
+    "Expression": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/ExprBinary"
+        },
+        {
+          "$ref": "#/definitions/ExprUnary"
+        }
+      ],
+      "description": "Mathematical expression involving variables and constants.\n\nThe expression is evaluated in the context of any parametrizable field.\n\nIf the context requires an integer value, the float result is rounded at the end. If the expression type differs from expected by the context (e.g. channel_name), it is a runtime error. If an expression result array length differs from expected, a it is a runtime error."
+    },
+    "HardcodedDevice": {
+      "enum": [
+        "Chadoq2",
+        "IroiseMVP",
+        "MockDevice"
+      ],
+      "type": "string"
+    },
+    "InterpolatedWaveform": {
+      "additionalProperties": false,
+      "description": "Creates a waveform from interpolation of a set of data points. Uses pchip interpolation algorithm.",
+      "properties": {
+        "duration": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform duration (in ns)."
+        },
+        "kind": {
+          "const": "interpolated",
+          "type": "string"
+        },
+        "times": {
+          "$ref": "#/definitions/ParametrizedNumArray",
+          "description": "Fractions of the total duration (between 0 and 1), indicating where to place each value on the time axis. The array size must be the same as `values` array size."
+        },
+        "values": {
+          "$ref": "#/definitions/ParametrizedNumArray",
+          "description": "Values of the interpolation points (in rad/µs)."
+        }
+      },
+      "required": [
+        "kind",
+        "duration",
+        "values",
+        "times"
+      ],
+      "type": "object"
+    },
+    "KaiserMaxWaveform": {
+      "additionalProperties": false,
+      "description": "A Kaiser window of a specified max value, area and beta parameter.",
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The integral of the waveform. Can be negative, in which case it takes the positive waveform and changes the sign of all its values."
+        },
+        "beta": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The beta parameter of the Kaiser window. A typical value is 14."
+        },
+        "kind": {
+          "const": "kaiser_max",
+          "type": "string"
+        },
+        "max_val": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform peak value."
+        }
+      },
+      "required": [
+        "kind",
+        "max_val",
+        "area",
+        "beta"
+      ],
+      "type": "object"
+    },
+    "KaiserWaveform": {
+      "additionalProperties": false,
+      "description": "A Kaiser window of a specified duration, area and beta parameter.",
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The integral of the waveform. Can be negative, in which case it takes the positive waveform and changes the sign of all its values."
+        },
+        "beta": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The beta parameter of the Kaiser window. A typical value is 14."
+        },
+        "duration": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform duration (in ns)."
+        },
+        "kind": {
+          "const": "kaiser",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "duration",
+        "area",
+        "beta"
+      ],
+      "type": "object"
+    },
+    "Layout": {
+      "$ref": "layout-schema.json"
+    },
+    "MappableQubit": {
+      "additionalProperties": false,
+      "properties": {
+        "default_trap": {
+          "description": "An optional default trap ID.",
+          "type": "number"
+        },
+        "qid": {
+          "$ref": "#/definitions/QubitId",
+          "description": "The ID of the qubit."
+        }
+      },
+      "required": [
+        "qid"
+      ],
+      "type": "object"
+    },
+    "OpAddDmmDet": {
+      "additionalProperties": false,
+      "properties": {
+        "dmm_name": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "The name of the DMM."
+        },
+        "op": {
+          "const": "add_dmm_detuning",
+          "type": "string"
+        },
+        "protocol": {
+          "description": "Stipulates how to deal with eventual conflicts with other channels, specifically in terms of having multiple channels act on the same target simultaneously.\n\n- ``'min-delay'``: Before adding the pulse, introduces the   smallest possible delay that avoids all exisiting conflicts.\n\n- ``'no-delay'``: Adds the pulse to the channel, regardless of   existing conflicts.\n\n- ``'wait-for-all'``: Before adding the pulse, adds a delay   that idles the channel until the end of the other channels'   latest pulse.",
+          "enum": [
+            "min-delay",
+            "no-delay",
+            "wait-for-all"
+          ],
+          "type": "string"
+        },
+        "waveform": {
+          "$ref": "#/definitions/Waveform",
+          "description": "The waveform to add to the detuning of the DMM."
+        }
+      },
+      "required": [
+        "op",
+        "waveform",
+        "dmm_name",
+        "protocol"
+      ],
+      "type": "object"
+    },
+    "OpAlign": {
+      "additionalProperties": false,
+      "description": "Aligns multiple channels in time.\n\nIntroduces delays that align the provided channels with the one that finished the latest, such that the next action added to any of them will start right after the latest channel has finished.",
+      "properties": {
+        "channels": {
+          "items": {
+            "$ref": "#/definitions/ChannelName"
+          },
+          "type": "array"
+        },
+        "op": {
+          "const": "align",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "channels"
+      ],
+      "type": "object"
+    },
+    "OpConfigDetMap": {
+      "additionalProperties": false,
+      "properties": {
+        "detuning_map": {
+          "$ref": "#/definitions/WeightMap",
+          "description": "DetuningMap to associate with the DMM channel."
+        },
+        "dmm_id": {
+          "$ref": "#/definitions/ChannelId",
+          "description": "ID of the DMM channel to configure."
+        },
+        "op": {
+          "const": "config_detuning_map",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "detuning_map",
+        "dmm_id"
+      ],
+      "type": "object"
+    },
+    "OpConfigSLM": {
+      "additionalProperties": false,
+      "properties": {
+        "dmm_id": {
+          "$ref": "#/definitions/ChannelId",
+          "description": "ID of the DMM channel to use for the SLM mask."
+        },
+        "op": {
+          "const": "config_slm_mask",
+          "type": "string"
+        },
+        "qubits": {
+          "description": "Qubit ID's to mask during the first global pulse of the sequence.",
+          "items": {
+            "$ref": "#/definitions/QubitId"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "op",
+        "qubits",
+        "dmm_id"
+      ],
+      "type": "object"
+    },
+    "OpDelay": {
+      "additionalProperties": false,
+      "description": "Adds extra fixed delay before starting the pulse.",
+      "properties": {
+        "channel": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "Channel on which to insert a delay"
+        },
+        "op": {
+          "const": "delay",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "Delay time"
+        }
+      },
+      "required": [
+        "op",
+        "channel",
+        "time"
+      ],
+      "type": "object"
+    },
+    "OpDisableEOM": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "The name of the channel to take out of EOM mode."
+        },
+        "correct_phase_drift": {
+          "description": "Performs a phase shift to correct for the phase drift that occured since the last pulse (or the start of the EOM mode, if no pulse was added).",
+          "type": "boolean"
+        },
+        "op": {
+          "const": "disable_eom_mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "channel"
+      ],
+      "type": "object"
+    },
+    "OpEOMPulse": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "The name of the channel to add the pulse to."
+        },
+        "correct_phase_drift": {
+          "description": "Performs a phase shift to correct for the phase drift that occured since the last pulse (or the start of the EOM mode, if adding the first pulse).",
+          "type": "boolean"
+        },
+        "duration": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The duration of the pulse (in ns)."
+        },
+        "op": {
+          "const": "add_eom_pulse",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The pulse phase (in radians)."
+        },
+        "post_phase_shift": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "A phase shift (in radians) immediately after the end of the pulse."
+        },
+        "protocol": {
+          "description": "Stipulates how to deal with eventual conflicts with other channels.",
+          "enum": [
+            "min-delay",
+            "no-delay",
+            "wait-for-all"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "channel",
+        "duration",
+        "phase",
+        "post_phase_shift",
+        "protocol"
+      ],
+      "type": "object"
+    },
+    "OpEnableEOM": {
+      "additionalProperties": false,
+      "properties": {
+        "amp_on": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The amplitude of the EOM pulses (in rad/µs)."
+        },
+        "channel": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "The name of the channel to put in EOM mode."
+        },
+        "correct_phase_drift": {
+          "description": "Performs a phase shift to correct for the phase drift incurred while turning on the EOM mode.",
+          "type": "boolean"
+        },
+        "detuning_on": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The detuning of the EOM pulses (in rad/µs)."
+        },
+        "op": {
+          "const": "enable_eom_mode",
+          "type": "string"
+        },
+        "optimal_detuning_off": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The optimal value of detuning when there is no pulse being played (in rad/µs). It will choose the closest value among the existing options."
+        }
+      },
+      "required": [
+        "op",
+        "channel",
+        "amp_on",
+        "detuning_on",
+        "optimal_detuning_off"
+      ],
+      "type": "object"
+    },
+    "OpPhaseShift": {
+      "additionalProperties": false,
+      "description": "Adds a separate phase shift to atoms. If possible, OpPulse phase and post_phase_shift are preferred.",
+      "properties": {
+        "basis": {
+          "$ref": "#/definitions/Basis",
+          "description": "Phase shift basis"
+        },
+        "op": {
+          "const": "phase_shift",
+          "type": "string"
+        },
+        "phi": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The intended phase shift (in rads)."
+        },
+        "targets": {
+          "description": "Target atom indices",
+          "items": {
+            "$ref": "#/definitions/ParametrizedNum"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "op",
+        "basis",
+        "targets",
+        "phi"
+      ],
+      "type": "object"
+    },
+    "OpPulse": {
+      "additionalProperties": false,
+      "description": "Pulse is a modulation of a frequency signal in amplitude and/or frequency, with a specific phase, over a given duration.\n\nNote:     We define the ``amplitude`` of a pulse to be its Rabi frequency, `ω`, in rad/µs.     Equivalently, the ``detuning`` is `Δ`, also in rad/µs.",
+      "properties": {
+        "amplitude": {
+          "$ref": "#/definitions/Waveform",
+          "description": "Pulse amplitude waveform (in rad/µs)"
+        },
+        "channel": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "Device channel to use for this pulse."
+        },
+        "detuning": {
+          "$ref": "#/definitions/Waveform",
+          "description": "Shift in frequency from the channel's central frequency over time (in rad/µs)"
+        },
+        "op": {
+          "const": "pulse",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The pulse phase (in radians)"
+        },
+        "post_phase_shift": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "A phase shift (in radians) immediately after the end of the pulse"
+        },
+        "protocol": {
+          "description": "Stipulates how to deal with eventual conflicts with other channels, specifically in terms of having multiple channels act on the same target simultaneously.\n\n- ``'min-delay'``: Before adding the pulse, introduces the   smallest possible delay that avoids all exisiting conflicts.\n\n- ``'no-delay'``: Adds the pulse to the channel, regardless of   existing conflicts.\n\n- ``'wait-for-all'``: Before adding the pulse, adds a delay   that idles the channel until the end of the other channels'   latest pulse.",
+          "enum": [
+            "min-delay",
+            "no-delay",
+            "wait-for-all"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "op",
+        "protocol",
+        "channel",
+        "amplitude",
+        "detuning",
+        "phase",
+        "post_phase_shift"
+      ],
+      "type": "object"
+    },
+    "OpTarget": {
+      "additionalProperties": false,
+      "description": "Adds a waveform to the pulse.",
+      "properties": {
+        "channel": {
+          "$ref": "#/definitions/ChannelName",
+          "description": "Channel to retarget. Must be local"
+        },
+        "op": {
+          "const": "target",
+          "type": "string"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ParametrizedNum"
+            },
+            {
+              "$ref": "#/definitions/ParametrizedNumArray"
+            }
+          ],
+          "description": "New target atom index (or indices)"
+        }
+      },
+      "required": [
+        "op",
+        "channel",
+        "target"
+      ],
+      "type": "object"
+    },
+    "Operation": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/OpAlign"
+        },
+        {
+          "$ref": "#/definitions/OpDelay"
+        },
+        {
+          "$ref": "#/definitions/OpTarget"
+        },
+        {
+          "$ref": "#/definitions/OpPulse"
+        },
+        {
+          "$ref": "#/definitions/OpPhaseShift"
+        },
+        {
+          "$ref": "#/definitions/OpEnableEOM"
+        },
+        {
+          "$ref": "#/definitions/OpDisableEOM"
+        },
+        {
+          "$ref": "#/definitions/OpEOMPulse"
+        },
+        {
+          "$ref": "#/definitions/OpConfigSLM"
+        },
+        {
+          "$ref": "#/definitions/OpConfigDetMap"
+        },
+        {
+          "$ref": "#/definitions/OpAddDmmDet"
+        }
+      ],
+      "description": "Sequence operation. All operations are performed in specified order."
+    },
+    "ParametrizedNum": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/definitions/Expression"
+        }
+      ],
+      "description": "Numeric scalar value that can be parametrized"
+    },
+    "ParametrizedNumArray": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "$ref": "#/definitions/Expression"
+        },
+        {
+          "$ref": "#/definitions/VariableRef"
+        }
+      ],
+      "description": "Numeric array value that can be parametrized"
+    },
+    "PulserSequence": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "$schema": {
+              "type": "string"
+            },
+            "channels": {
+              "additionalProperties": {
+                "$ref": "#/definitions/ChannelId"
+              },
+              "description": "Channels declared in this Sequence.",
+              "type": "object"
+            },
+            "device": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HardcodedDevice"
+                },
+                {
+                  "$ref": "#/definitions/Device"
+                }
+              ],
+              "description": "A valid device in which to execute the Sequence"
+            },
+            "layout": {
+              "$ref": "#/definitions/Layout",
+              "description": "The trap layout underlying the register."
+            },
+            "magnetic_field": {
+              "description": "The magnetic field components in x, y and z (in Gauss)",
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "measurement": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Basis"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Type of measurement to perform after all pulses are executed"
+            },
+            "name": {
+              "description": "User-assigned sequence name. Can be autogenerated on export if not provided.",
+              "type": "string"
+            },
+            "operations": {
+              "description": "Sequence of pulses, delays and target changes, performed in specified order.",
+              "items": {
+                "$ref": "#/definitions/Operation"
+              },
+              "type": "array"
+            },
+            "register": {
+              "description": "A 2D register containing a set of atoms.",
+              "items": {
+                "$ref": "#/definitions/Atom"
+              },
+              "type": "array"
+            },
+            "slm_mask_targets": {
+              "description": "The qubits to mask during the first global pulse of the sequence.",
+              "items": {
+                "$ref": "#/definitions/QubitId"
+              },
+              "type": "array"
+            },
+            "variables": {
+              "additionalProperties": {
+                "$ref": "#/definitions/Variable"
+              },
+              "description": "Variables and expressions that can be used in expressions or parametrized values.",
+              "type": "object"
+            },
+            "version": {
+              "const": "1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "channels",
+            "device",
+            "measurement",
+            "name",
+            "operations",
+            "register",
+            "variables",
+            "version"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "$schema": {
+              "type": "string"
+            },
+            "channels": {
+              "additionalProperties": {
+                "$ref": "#/definitions/ChannelId"
+              },
+              "description": "Channels declared in this Sequence.",
+              "type": "object"
+            },
+            "device": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/HardcodedDevice"
+                },
+                {
+                  "$ref": "#/definitions/Device"
+                }
+              ],
+              "description": "A valid device in which to execute the Sequence"
+            },
+            "layout": {
+              "$ref": "#/definitions/Layout",
+              "description": "The trap layout underlying the register."
+            },
+            "magnetic_field": {
+              "description": "The magnetic field components in x, y and z (in Gauss)",
+              "items": {
+                "type": "number"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "measurement": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Basis"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Type of measurement to perform after all pulses are executed"
+            },
+            "name": {
+              "description": "User-assigned sequence name. Can be autogenerated on export if not provided.",
+              "type": "string"
+            },
+            "operations": {
+              "description": "Sequence of pulses, delays and target changes, performed in specified order.",
+              "items": {
+                "$ref": "#/definitions/Operation"
+              },
+              "type": "array"
+            },
+            "register": {
+              "description": "A  list of qubit IDs.",
+              "items": {
+                "$ref": "#/definitions/MappableQubit"
+              },
+              "type": "array"
+            },
+            "slm_mask_targets": {
+              "description": "The qubits to mask during the first global pulse of the sequence.",
+              "items": {
+                "$ref": "#/definitions/QubitId"
+              },
+              "type": "array"
+            },
+            "variables": {
+              "additionalProperties": {
+                "$ref": "#/definitions/Variable"
+              },
+              "description": "Variables and expressions that can be used in expressions or parametrized values.",
+              "type": "object"
+            },
+            "version": {
+              "const": "1",
+              "type": "string"
+            }
+          },
+          "required": [
+            "channels",
+            "device",
+            "layout",
+            "measurement",
+            "name",
+            "operations",
+            "register",
+            "variables",
+            "version"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "Pulser import/export data structure."
+    },
+    "QubitId": {
+      "description": "Name for a qubit.",
+      "type": "string"
+    },
+    "RampWaveform": {
+      "additionalProperties": false,
+      "description": "A linear ramp waveform.",
+      "properties": {
+        "duration": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The waveform duration (in ns)."
+        },
+        "kind": {
+          "const": "ramp",
+          "type": "string"
+        },
+        "start": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The initial value (in rad/µs)."
+        },
+        "stop": {
+          "$ref": "#/definitions/ParametrizedNum",
+          "description": "The final value (in rad/µs)."
+        }
+      },
+      "required": [
+        "kind",
+        "duration",
+        "start",
+        "stop"
+      ],
+      "type": "object"
+    },
+    "Variable": {
+      "additionalProperties": false,
+      "description": "Variable representing a typed value assigned during sequence build. variables can be used in expressions and parametrized values.",
+      "properties": {
+        "type": {
+          "description": "Variable type",
+          "enum": [
+            "int",
+            "float"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "description": "Default variable value. The default array length determines the variable array size.",
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "type": "object"
+    },
+    "VariableName": {
+      "description": "Name of declared variable.",
+      "type": "string"
+    },
+    "VariableRef": {
+      "additionalProperties": false,
+      "description": "References a declared variable by name.",
+      "properties": {
+        "variable": {
+          "$ref": "#/definitions/VariableName",
+          "description": "variable name, must reference declared variable"
+        }
+      },
+      "required": [
+        "variable"
+      ],
+      "type": "object"
+    },
+    "Waveform": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/CompositeWaveform"
+        },
+        {
+          "$ref": "#/definitions/CustomWaveform"
+        },
+        {
+          "$ref": "#/definitions/ConstantWaveform"
+        },
+        {
+          "$ref": "#/definitions/RampWaveform"
+        },
+        {
+          "$ref": "#/definitions/BlackmanWaveform"
+        },
+        {
+          "$ref": "#/definitions/BlackmanMaxWaveform"
+        },
+        {
+          "$ref": "#/definitions/InterpolatedWaveform"
+        },
+        {
+          "$ref": "#/definitions/KaiserWaveform"
+        },
+        {
+          "$ref": "#/definitions/KaiserMaxWaveform"
+        }
+      ],
+      "description": "Modulation waveform of any kind"
+    },
+    "WeightMap": {
+      "additionalProperties": false,
+      "description": "Associates weights to trap coordinates. The sum of the provided weights must be equal to 1.",
+      "properties": {
+        "slug": {
+          "type": "string"
+        },
+        "traps": {
+          "items": {
+            "$ref": "#/definitions/WeightedTrap"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "traps"
+      ],
+      "type": "object"
+    },
+    "WeightedTrap": {
+      "additionalProperties": false,
+      "properties": {
+        "weight": {
+          "description": "The weight on the site.",
+          "type": "number"
+        },
+        "x": {
+          "description": "x-position in µm",
+          "type": "number"
+        },
+        "y": {
+          "description": "y-position in µm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "weight",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    }
+  }
+}

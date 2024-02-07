@@ -4,7 +4,10 @@ import warnings
 
 from torch import Tensor
 
-from pulser_diff.dq.solvers.ode.adaptive_solver import AdjointAdaptiveSolver, DormandPrince5
+from pulser_diff.dq.solvers.ode.adaptive_solver import (
+    AdjointAdaptiveSolver,
+    DormandPrince5,
+)
 
 
 class SEAdaptive(AdjointAdaptiveSolver):
@@ -12,7 +15,7 @@ class SEAdaptive(AdjointAdaptiveSolver):
         """Compute dpsi / dt = -1j * H(psi) at time t."""
         with warnings.catch_warnings():
             # filter-out UserWarning about "Sparse CSR tensor support is in beta state"
-            warnings.filterwarnings('ignore', category=UserWarning)
+            warnings.filterwarnings("ignore", category=UserWarning)
             res = -1j * self.H(t) @ psi.to_sparse()
         return res
 
