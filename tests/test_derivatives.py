@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import pytest
 import torch
+from metrics import (
+    ATOL_DERIV_PARAM,
+    ATOL_DERIV_TIME,
+    ATOL_EXPV_DQ,
+    ATOL_EXPV_KRYLOV,
+    ATOL_WF,
+    EPS_PARAM,
+)
 from scipy import interpolate
 from torch import Tensor
 
-from pulser_diff import DynamiqsEmulator
+from pulser_diff import TorchEmulator
 from pulser_diff.derivative import deriv_param, deriv_time
 from pulser_diff.pulser import Pulse, Register, Sequence
 from pulser_diff.pulser.devices import MockDevice
@@ -16,12 +24,6 @@ from pulser_diff.pulser.waveforms import (
     RampWaveform,
 )
 from pulser_diff.pulser_simulation import QutipEmulator
-
-ATOL_WF = 1e-2
-ATOL_EXPV = 1e-3
-ATOL_DERIV_TIME = 2e-2
-ATOL_DERIV_PARAM = 1e-4
-EPS_PARAM = 1e-4
 
 
 def add_pulses(
@@ -45,7 +47,9 @@ def add_pulses(
     return seq
 
 
+@pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_wavefunction(
+    solver: str,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -58,8 +62,8 @@ def test_wavefunction(
     )
 
     # simulate with dynamiqs
-    sim_dq = DynamiqsEmulator.from_sequence(seq, sampling_rate=1.0)
-    results_dq = sim_dq.run()
+    sim_dq = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+    results_dq = sim_dq.run(solver=solver)
 
     # simulate with qutip
     sim_qt = QutipEmulator.from_sequence(seq, sampling_rate=1.0)
@@ -72,7 +76,9 @@ def test_wavefunction(
     )
 
 
+@pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_expectation(
+    solver: str,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -87,8 +93,8 @@ def test_expectation(
     )
 
     # simulate with dynamiqs
-    sim_dq = DynamiqsEmulator.from_sequence(seq, sampling_rate=1.0)
-    results_dq = sim_dq.run()
+    sim_dq = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+    results_dq = sim_dq.run(solver=solver)
     exp_val_dq = results_dq.expect([total_magnetization_dq])[0].real
 
     # simulate with qutip
@@ -96,11 +102,14 @@ def test_expectation(
     results_qt = sim_qt.run()
     exp_val_qt = results_qt.expect([total_magnetization_qt])[0].real
 
-    assert torch.allclose(exp_val_dq, torch.as_tensor(exp_val_qt), atol=ATOL_EXPV)
+    atol = ATOL_EXPV_DQ if solver == "dq" else ATOL_EXPV_KRYLOV
+    assert torch.allclose(exp_val_dq, torch.as_tensor(exp_val_qt), atol=atol)
 
 
 @pytest.mark.flaky(max_runs=5)
+@pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_time_derivative(
+    solver: str,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -114,8 +123,8 @@ def test_time_derivative(
     )
 
     # simulate with dynamiqs
-    sim = DynamiqsEmulator.from_sequence(seq, sampling_rate=1.0)
-    results = sim.run(time_grad=True)
+    sim = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+    results = sim.run(time_grad=True, solver=solver)
     exp_val = results.expect([total_magnetization_dq])[0].real
 
     # calculate derivative with torch autograd
@@ -136,7 +145,9 @@ def test_time_derivative(
     )
 
 
+@pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_pulse_param_derivative(
+    solver: str,
     reg: Register,
     duration: int,
     const_val: Tensor,
@@ -167,8 +178,8 @@ def test_pulse_param_derivative(
         )
 
         # simulate with dynamiqs
-        sim = DynamiqsEmulator.from_sequence(seq, sampling_rate=1.0)
-        results = sim.run()
+        sim = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+        results = sim.run(solver=solver)
         exp_vals = results.expect([total_magnetization_dq])[0].real
 
         return exp_vals, sim.evaluation_times
@@ -180,7 +191,7 @@ def test_pulse_param_derivative(
         # autograd
         grad_auto = deriv_param(
             f=exp_vals_auto, x=param, times=eval_times, t=1000 * eval_times[-1]
-        )
+        )[0]
 
         # finite difference
         exp_vals = torch.tensor([0.0])
@@ -194,7 +205,9 @@ def test_pulse_param_derivative(
         assert torch.isclose(grad_auto, grad_fd, atol=ATOL_DERIV_PARAM)
 
 
+@pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_register_coords_derivative(
+    solver: str,
     duration: int,
     q0_coords: Tensor,
     q1_coords: Tensor,
@@ -223,8 +236,8 @@ def test_register_coords_derivative(
         )
 
         # simulate with dynamiqs
-        sim = DynamiqsEmulator.from_sequence(seq, sampling_rate=1.0)
-        results = sim.run(dist_grad=True)
+        sim = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+        results = sim.run(dist_grad=True, solver=solver)
         exp_vals = results.expect([total_magnetization_dq])[0].real
 
         return exp_vals
@@ -234,7 +247,7 @@ def test_register_coords_derivative(
     exp_vals_auto = run_sequence(*diff_params)
     for i, param in enumerate(diff_params):
         # autograd
-        grad_auto = deriv_param(f=exp_vals_auto, x=param)
+        grad_auto = deriv_param(f=exp_vals_auto, x=param)[0]
 
         # finite difference
         exp_vals = torch.tensor([0.0])

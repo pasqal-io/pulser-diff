@@ -54,13 +54,16 @@ def deriv_time(f: Tensor, times: Tensor, pulse_endtimes: list | None = None) -> 
 
 
 def deriv_param(
-    f: Tensor, x: Tensor, times: Tensor | None = None, t: int | float | None = None
+    f: Tensor,
+    x: list[Tensor],
+    times: Tensor | None = None,
+    t: int | float | None = None,
 ) -> Tensor:
     """Calculate derivative with respect to pulse parameter.
 
     Args:
         f (Tensor): time-dependent function
-        x (Tensor): pulse parameter on which function depends
+        x (list[Tensor]): list of pulse parameters on which function depends
         times (None | Tensor, optional): function evaluation times. Defaults to None.
         t (int | list[int], optional): a particular time (in ns)
         for which derivative is calculated. Defaults to None.
@@ -77,6 +80,6 @@ def deriv_param(
         t = float(times[-1] if t is None else float(t) / 1000)
         idx = torch.abs(times - t).argmin()
         v[idx] = 1.0
-    grad = torch.autograd.grad(f, x, v, retain_graph=True)[0]
+    grad = torch.autograd.grad(f, x, v, retain_graph=True)
 
     return grad
