@@ -15,4 +15,4 @@
 from __future__ import annotations
 
 import pulser_diff.pulser.torch
-from pulser_diff.dynamiqs_backend import DynamiqsEmulator
+from pulser_diff.backend import TorchEmulator

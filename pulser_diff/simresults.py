@@ -28,8 +28,9 @@ import torch
 from torch import Tensor
 
 import pulser_diff.dq as dq
-from pulser_diff.dynamiqs_result import DynamiqsResult
 from pulser_diff.pulser.result import Results, ResultType, SampledResult
+from pulser_diff.result import DynamiqsResult
+from pulser_diff.utils import expect
 
 
 class SimulationResults(ABC, Results[ResultType]):
@@ -116,7 +117,7 @@ class SimulationResults(ABC, Results[ResultType]):
             else:
                 states = self.states
 
-            exp_vals.append(dq.expect(obs, states))
+            exp_vals.append(expect(obs, states))
 
         return cast(list, exp_vals)
 

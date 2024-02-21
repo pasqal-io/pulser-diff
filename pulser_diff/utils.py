@@ -3,6 +3,8 @@ from __future__ import annotations
 import torch
 from torch import Tensor
 
+import pulser_diff.dq as dq
+
 
 def kron(*args: Tensor) -> Tensor:
     if not all([t.is_sparse for t in args]):
@@ -39,3 +41,15 @@ def kron(*args: Tensor) -> Tensor:
         new_indices, new_values, tuple(new_size)
     ).coalesce()
     return mat_prod
+
+
+def expect(obs: Tensor, state: Tensor) -> Tensor:
+    if obs.is_sparse:
+        state = state.squeeze(-1)
+        exp_val = (
+            torch.matmul(state.conj(), torch.matmul(obs, state.T)).to_dense().diag()
+        )
+    else:
+        exp_val = dq.expect(obs, state)
+
+    return exp_val

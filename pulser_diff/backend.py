@@ -29,8 +29,8 @@ from torch import Tensor
 import pulser_diff.dq as dq
 import pulser_diff.pulser.sampler as sampler
 from pulser_diff.dq.time_tensor import CallableTimeTensor
-from pulser_diff.dynamiqs_result import DynamiqsResult
 from pulser_diff.hamiltonian import Hamiltonian
+from pulser_diff.krylov import sesolve_krylov
 from pulser_diff.pulser import Sequence
 from pulser_diff.pulser.backend.noise_model import NoiseModel
 from pulser_diff.pulser.devices._device_datacls import BaseDevice
@@ -39,6 +39,7 @@ from pulser_diff.pulser.result import SampledResult
 from pulser_diff.pulser.sampler.samples import SequenceSamples
 from pulser_diff.pulser.sequence._seq_drawer import draw_samples
 from pulser_diff.pulser_simulation.simconfig import SimConfig
+from pulser_diff.result import DynamiqsResult
 from pulser_diff.simresults import (
     CoherentResults,
     NoisyResults,
@@ -46,8 +47,8 @@ from pulser_diff.simresults import (
 )
 
 
-class DynamiqsEmulator:
-    r"""Emulator of a pulse sequence using QuTiP.
+class TorchEmulator:
+    r"""Emulator of a pulse sequence using torch-based solvers.
 
     Args:
         sampled_seq: A pulse sequence samples used in the emulation.
@@ -408,16 +409,16 @@ class DynamiqsEmulator:
             # Note: if `value` is very small `eval_times` is an empty list:
             eval_times = self._hamiltonian.sampling_times[indices]
         elif isinstance(value, (list, tuple, Tensor)):
-            if torch.max(value, initial=0) > self._tot_duration / 1000:
+            if torch.max(value) > self._tot_duration / 1000:
                 raise ValueError(
                     "Provided evaluation-time list extends "
                     "further than sequence duration."
                 )
-            if torch.min(value, initial=0) < 0:
+            if torch.min(value) < 0:
                 raise ValueError(
                     "Provided evaluation-time list contains " "negative values."
                 )
-            eval_times = torch.tensor(value)
+            eval_times = torch.as_tensor(value)
         else:
             raise ValueError(
                 "Wrong evaluation time label. It should "
@@ -491,6 +492,7 @@ class DynamiqsEmulator:
         time_grad: bool = False,
         dist_grad: bool = False,
         progress_bar: bool = False,
+        solver: str = "dq",
         **options: Any,
     ) -> SimulationResults:
         """Simulates the sequence using QuTiP's solvers.
@@ -579,15 +581,25 @@ class DynamiqsEmulator:
                 #     progress_bar=p_bar,
                 # )
             else:
-                result = dq.sesolve(
-                    H=CallableTimeTensor(  # type: ignore [abstract]
-                        self._hamiltonian._hamiltonian,
-                        self._hamiltonian._hamiltonian(0.0),
-                    ),
-                    psi0=self.initial_state,
-                    tsave=self._eval_times_array,
-                    options=dict(verbose=True if progress_bar else False),
-                )
+                if solver == "dq":
+                    result = dq.sesolve(
+                        H=CallableTimeTensor(  # type: ignore [abstract]
+                            self._hamiltonian._hamiltonian,
+                            self._hamiltonian._hamiltonian(0.0),
+                        ),
+                        psi0=self.initial_state,
+                        tsave=self._eval_times_array,
+                        options=dict(verbose=True if progress_bar else False),
+                    )
+                elif solver == "krylov":
+                    result = sesolve_krylov(
+                        H=self._hamiltonian._hamiltonian,
+                        psi0=self.initial_state,
+                        tsave=self._eval_times_array,
+                        progress_bar=progress_bar,
+                    )
+                else:
+                    raise ValueError(f"Solver {solver} not available.")
             results = [
                 DynamiqsResult(
                     tuple(self._hamiltonian._qdict),
@@ -725,7 +737,7 @@ class DynamiqsEmulator:
         config: Optional[SimConfig] = None,
         evaluation_times: Union[float, str, ArrayLike] = "Full",
         with_modulation: bool = False,
-    ) -> DynamiqsEmulator:
+    ) -> TorchEmulator:
         r"""Simulation of a pulse sequence using QuTiP.
 
         Args:
