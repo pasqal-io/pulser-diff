@@ -546,13 +546,15 @@ class Hamiltonian:
                     det_val[t_idx1]
                     + (det_val[t_idx2] - det_val[t_idx1]) * (t - t_idx1 * dt) / dt
                 )
-                ham += (det_mat + det_mat.adjoint()) * det
+                ham_mat = det_mat * det
+                ham += ham_mat + ham_mat.adjoint()
             for amp_mat, amp_val in zip(amp_matrices, amp_values):
                 amp = (
                     amp_val[t_idx1]
                     + (amp_val[t_idx2] - amp_val[t_idx1]) * (t - t_idx1 * dt) / dt
                 )
-                ham += (amp_mat + amp_mat.adjoint()) * amp
+                ham_mat = amp_mat * amp
+                ham += ham_mat + ham_mat.adjoint()
 
             return ham
 

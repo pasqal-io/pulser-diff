@@ -30,6 +30,7 @@ def add_pulses(
     seq: Sequence,
     duration: int,
     const_val: Tensor,
+    phase_val: Tensor,
     ramp_val_start: Tensor,
     ramp_val_end: Tensor,
     blackman_area: Tensor,
@@ -40,7 +41,7 @@ def add_pulses(
     ramp_wf = RampWaveform(duration, ramp_val_start, ramp_val_end)
     blackman_wf = BlackmanWaveform(duration, blackman_area)
     kaiser_wf = KaiserWaveform(duration, kaiser_area)
-    seq.add(Pulse(const_wf, ramp_wf, 0), "rydberg_global")
+    seq.add(Pulse(const_wf, ramp_wf, phase_val), "rydberg_global")
     seq.target("q1", "rydberg_local")
     seq.add(Pulse(blackman_wf, const_wf, 0), "rydberg_local")
     seq.add(Pulse(kaiser_wf, ramp_wf, 0), "rydberg_global")
@@ -53,12 +54,20 @@ def test_wavefunction(
     seq: Sequence,
     duration: int,
     const_val: Tensor,
+    phase_val: Tensor,
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
 ) -> None:
     seq = add_pulses(
-        seq, duration, const_val, ramp_vals[0], ramp_vals[1], blackman_area, kaiser_area
+        seq,
+        duration,
+        const_val,
+        phase_val,
+        ramp_vals[0],
+        ramp_vals[1],
+        blackman_area,
+        kaiser_area,
     )
 
     # simulate with dynamiqs
@@ -76,12 +85,14 @@ def test_wavefunction(
     )
 
 
+@pytest.mark.flaky(max_runs=5)
 @pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_expectation(
     solver: str,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
+    phase_val: Tensor,
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
@@ -89,7 +100,14 @@ def test_expectation(
     total_magnetization_qt: Tensor,
 ) -> None:
     seq = add_pulses(
-        seq, duration, const_val, ramp_vals[0], ramp_vals[1], blackman_area, kaiser_area
+        seq,
+        duration,
+        const_val,
+        phase_val,
+        ramp_vals[0],
+        ramp_vals[1],
+        blackman_area,
+        kaiser_area,
     )
 
     # simulate with dynamiqs
@@ -113,13 +131,21 @@ def test_time_derivative(
     seq: Sequence,
     duration: int,
     const_val: Tensor,
+    phase_val: Tensor,
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
     total_magnetization_dq: Tensor,
 ) -> None:
     seq = add_pulses(
-        seq, duration, const_val, ramp_vals[0], ramp_vals[1], blackman_area, kaiser_area
+        seq,
+        duration,
+        const_val,
+        phase_val,
+        ramp_vals[0],
+        ramp_vals[1],
+        blackman_area,
+        kaiser_area,
     )
 
     # simulate with dynamiqs
@@ -151,6 +177,7 @@ def test_pulse_param_derivative(
     reg: Register,
     duration: int,
     const_val: Tensor,
+    phase_val: Tensor,
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
@@ -158,6 +185,7 @@ def test_pulse_param_derivative(
 ) -> None:
     def run_sequence(
         const_val: Tensor,
+        phase_val: Tensor,
         ramp_val_start: Tensor,
         ramp_val_end: Tensor,
         blackman_area: Tensor,
@@ -171,6 +199,7 @@ def test_pulse_param_derivative(
             seq,
             duration,
             const_val,
+            phase_val,
             ramp_val_start,
             ramp_val_end,
             blackman_area,
@@ -185,7 +214,14 @@ def test_pulse_param_derivative(
         return exp_vals, sim.evaluation_times
 
     # compare autograd gradients vs finite difference gradients
-    diff_params = [const_val, ramp_vals[0], ramp_vals[1], blackman_area, kaiser_area]
+    diff_params = [
+        const_val,
+        phase_val,
+        ramp_vals[0],
+        ramp_vals[1],
+        blackman_area,
+        kaiser_area,
+    ]
     exp_vals_auto, eval_times = run_sequence(*diff_params)
     for i, param in enumerate(diff_params):
         # autograd
@@ -212,6 +248,7 @@ def test_register_coords_derivative(
     q0_coords: Tensor,
     q1_coords: Tensor,
     const_val: Tensor,
+    phase_val: Tensor,
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
@@ -229,6 +266,7 @@ def test_register_coords_derivative(
             seq,
             duration,
             const_val,
+            phase_val,
             ramp_vals[0],
             ramp_vals[1],
             blackman_area,

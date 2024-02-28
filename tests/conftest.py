@@ -36,6 +36,11 @@ def const_val() -> Tensor:
 
 
 @pytest.fixture
+def phase_val() -> Tensor:
+    return torch.rand(1, requires_grad=True) + 0.5
+
+
+@pytest.fixture
 def ramp_vals() -> tuple[Tensor, Tensor]:
     start = torch.rand(1, requires_grad=True) * 10.0 + 4.0
     stop = torch.rand(1, requires_grad=True) * 10.0 + 4.0
