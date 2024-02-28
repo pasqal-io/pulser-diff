@@ -422,6 +422,11 @@ class Hamiltonian:
             elif basis == "XY":
                 op_ids = ["sigma_du", "sigma_uu"]
 
+            samples = {
+                key: val.detach().numpy() if hasattr(val, "detach") else val
+                for key, val in samples.items()
+            }
+
             terms = []
             if addr == "Global":
                 coeffs = [

@@ -97,8 +97,7 @@ class Pulse:
             )
         object.__setattr__(self, "amplitude", amplitude)
         object.__setattr__(self, "detuning", detuning)
-        phase = cast(float, phase)
-        object.__setattr__(self, "phase", float(phase) % (2 * np.pi))
+        object.__setattr__(self, "phase", phase % (2 * np.pi))
         post_phase_shift = cast(float, post_phase_shift)
         object.__setattr__(
             self, "post_phase_shift", float(post_phase_shift) % (2 * np.pi)

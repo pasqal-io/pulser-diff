@@ -632,14 +632,14 @@ class CompBackend:
                     if isinstance(pad_width, (int, float)):
                         out = lib.nn.functional.pad(t, (pad_width, 0), "constant", t[0])
                         out = lib.nn.functional.pad(
-                            out, (0, pad_width), "constant", t[-1]
+                            out, (0, pad_width), "constant", float(t[-1])
                         )
                     else:
                         out = lib.nn.functional.pad(
-                            t, (pad_width[0], 0), "constant", t[0]
+                            t, (pad_width[0], 0), "constant", float(t[0])
                         )
                         out = lib.nn.functional.pad(
-                            out, (0, pad_width[1]), "constant", t[-1]
+                            out, (0, pad_width[1]), "constant", float(t[-1])
                         )
                 return out
 
