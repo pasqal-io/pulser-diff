@@ -1524,7 +1524,10 @@ class Sequence(Generic[DeviceType]):
         seq._reset_parametrized()
 
         # Deepcopy the base sequence (what remains)
-        seq = copy.deepcopy(seq)
+        for ch in seq._schedule:
+            if len(seq._schedule[ch].slots) > 0:
+                seq._schedule[ch].slots = [seq._schedule[ch].slots[0]]
+        seq = copy.copy(seq)
         # NOTE: Changes to seq are now safe to do
 
         if not (self.is_parametrized() or self.is_register_mappable()):

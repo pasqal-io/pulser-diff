@@ -537,7 +537,7 @@ class Hamiltonian:
 
             # calculate time indices for interpolation
             t_idx1 = max(int(min(torch.floor(t / dt), n_samples - 2)), 0)
-            t_idx2 = min(t_idx1 + 1, n_samples - 1)
+            t_idx2 = min(t_idx1 + 1, n_samples - 2)
 
             # construct Hamiltonian
             ham = 2 * int_mat

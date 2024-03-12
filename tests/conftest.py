@@ -67,7 +67,7 @@ def seq(reg: Register) -> Sequence:
 
 
 @pytest.fixture
-def total_magnetization_dq(reg: Register) -> Tensor:
+def total_magnetization_torch(reg: Register) -> Tensor:
     # create total magnetization observable with dynamiqs/torch
     n_qubits = len(reg._coords)
     total_magnetization = []
@@ -80,7 +80,7 @@ def total_magnetization_dq(reg: Register) -> Tensor:
 
 
 @pytest.fixture
-def total_magnetization_qt(total_magnetization_dq: Tensor) -> Qobj:
+def total_magnetization_qt(total_magnetization_torch: Tensor) -> Qobj:
     # create total magnetization observable for qutip
-    total_magnetization = Qobj(total_magnetization_dq.numpy())
+    total_magnetization = Qobj(total_magnetization_torch.numpy())
     return total_magnetization
