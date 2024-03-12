@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 import torch
 from torch import Tensor
 
@@ -41,6 +43,25 @@ def kron(*args: Tensor) -> Tensor:
         new_indices, new_values, tuple(new_size)
     ).coalesce()
     return mat_prod
+
+
+@lru_cache
+def total_magnetization(n_qubits: int) -> Tensor:
+    zero_sparse = torch.sparse_coo_tensor(
+        [[0], [0]],
+        [0],
+        (2**n_qubits, 2**n_qubits),
+        dtype=torch.complex128,
+    )
+
+    # create sparse total magnetization observable
+    obs = []
+    for i in range(n_qubits):
+        tprod = [dq.eye(2).to_sparse() for _ in range(n_qubits)]
+        tprod[i] = dq.sigmaz().to_sparse()
+        obs.append(kron(*tprod))
+    obs = sum(obs, start=zero_sparse)
+    return obs
 
 
 def expect(obs: Tensor, state: Tensor) -> Tensor:

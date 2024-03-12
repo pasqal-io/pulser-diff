@@ -70,16 +70,16 @@ def test_wavefunction(
         kaiser_area,
     )
 
-    # simulate with dynamiqs
-    sim_dq = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
-    results_dq = sim_dq.run(solver=solver)
+    # simulate with torch-based solver
+    sim_torch = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+    results_torch = sim_torch.run(solver=solver)
 
     # simulate with qutip
     sim_qt = QutipEmulator.from_sequence(seq, sampling_rate=1.0)
     results_qt = sim_qt.run()
 
     assert torch.allclose(
-        results_dq.states[-1],
+        results_torch.states[-1],
         torch.as_tensor(results_qt.states[-1].full()),
         atol=ATOL_WF,
     )
@@ -96,7 +96,7 @@ def test_expectation(
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
-    total_magnetization_dq: Tensor,
+    total_magnetization_torch: Tensor,
     total_magnetization_qt: Tensor,
 ) -> None:
     seq = add_pulses(
@@ -110,10 +110,10 @@ def test_expectation(
         kaiser_area,
     )
 
-    # simulate with dynamiqs
-    sim_dq = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
-    results_dq = sim_dq.run(solver=solver)
-    exp_val_dq = results_dq.expect([total_magnetization_dq])[0].real
+    # simulate with torch-based solver
+    sim_torch = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
+    results_torch = sim_torch.run(solver=solver)
+    exp_val_torch = results_torch.expect([total_magnetization_torch])[0].real
 
     # simulate with qutip
     sim_qt = QutipEmulator.from_sequence(seq, sampling_rate=1.0)
@@ -121,7 +121,7 @@ def test_expectation(
     exp_val_qt = results_qt.expect([total_magnetization_qt])[0].real
 
     atol = ATOL_EXPV_DQ if solver == "dq" else ATOL_EXPV_KRYLOV
-    assert torch.allclose(exp_val_dq, torch.as_tensor(exp_val_qt), atol=atol)
+    assert torch.allclose(exp_val_torch, torch.as_tensor(exp_val_qt), atol=atol)
 
 
 @pytest.mark.flaky(max_runs=5)
@@ -135,7 +135,7 @@ def test_time_derivative(
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
-    total_magnetization_dq: Tensor,
+    total_magnetization_torch: Tensor,
 ) -> None:
     seq = add_pulses(
         seq,
@@ -148,10 +148,10 @@ def test_time_derivative(
         kaiser_area,
     )
 
-    # simulate with dynamiqs
+    # simulate with torch-based solver
     sim = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
     results = sim.run(time_grad=True, solver=solver)
-    exp_val = results.expect([total_magnetization_dq])[0].real
+    exp_val = results.expect([total_magnetization_torch])[0].real
 
     # calculate derivative with torch autograd
     eval_times = sim.evaluation_times
@@ -181,7 +181,7 @@ def test_pulse_param_derivative(
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
-    total_magnetization_dq: Tensor,
+    total_magnetization_torch: Tensor,
 ) -> None:
     def run_sequence(
         const_val: Tensor,
@@ -206,10 +206,10 @@ def test_pulse_param_derivative(
             kaiser_area,
         )
 
-        # simulate with dynamiqs
+        # simulate with torch-based solver
         sim = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
         results = sim.run(solver=solver)
-        exp_vals = results.expect([total_magnetization_dq])[0].real
+        exp_vals = results.expect([total_magnetization_torch])[0].real
 
         return exp_vals, sim.evaluation_times
 
@@ -252,7 +252,7 @@ def test_register_coords_derivative(
     ramp_vals: tuple[Tensor, Tensor],
     blackman_area: Tensor,
     kaiser_area: Tensor,
-    total_magnetization_dq: Tensor,
+    total_magnetization_torch: Tensor,
 ) -> None:
     def run_sequence(q0_coords: Tensor, q1_coords: Tensor) -> Tensor:
         # create register
@@ -273,10 +273,10 @@ def test_register_coords_derivative(
             kaiser_area,
         )
 
-        # simulate with dynamiqs
+        # simulate with torch-based solver
         sim = TorchEmulator.from_sequence(seq, sampling_rate=1.0)
         results = sim.run(dist_grad=True, solver=solver)
-        exp_vals = results.expect([total_magnetization_dq])[0].real
+        exp_vals = results.expect([total_magnetization_torch])[0].real
 
         return exp_vals
 
