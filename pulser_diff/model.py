@@ -64,17 +64,22 @@ class QuantumModel(Module):
         # build actual sequence from parameterized one
         self.update_sequence()
 
+        # create simulation object
+        self._sim = TorchEmulator.from_sequence(
+            self.built_seq, sampling_rate=self.sampling_rate
+        )
+
     def update_sequence(self) -> None:
         self.built_seq = self._seq.build(**self.trainable_params)
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
-        sim = TorchEmulator.from_sequence(
+        self._sim = TorchEmulator.from_sequence(
             self.built_seq, sampling_rate=self.sampling_rate
         )
-        results = sim.run(
+        results = self._sim.run(
             time_grad=self.time_grad, dist_grad=self.dist_grad, solver=self.solver
         )
-        return sim.evaluation_times, results
+        return self._sim.evaluation_times, results
 
     def forward(self) -> tuple[Tensor, Tensor]:
         # run sequence
