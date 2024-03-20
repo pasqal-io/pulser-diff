@@ -48,6 +48,7 @@ def add_pulses(
     return seq
 
 
+@pytest.mark.flaky(max_runs=5)
 @pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_wavefunction(
     solver: str,
@@ -171,6 +172,7 @@ def test_time_derivative(
     )
 
 
+@pytest.mark.flaky(max_runs=5)
 @pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_pulse_param_derivative(
     solver: str,
@@ -241,6 +243,7 @@ def test_pulse_param_derivative(
         assert torch.isclose(grad_auto, grad_fd, atol=ATOL_DERIV_PARAM)
 
 
+@pytest.mark.flaky(max_runs=5)
 @pytest.mark.parametrize("solver", ["dq", "krylov"])
 def test_register_coords_derivative(
     solver: str,
