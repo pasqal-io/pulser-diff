@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from functools import lru_cache
 
 import torch
@@ -66,11 +67,44 @@ def total_magnetization(n_qubits: int) -> Tensor:
 
 def expect(obs: Tensor, state: Tensor) -> Tensor:
     if obs.is_sparse:
-        state = state.squeeze(-1)
-        exp_val = (
-            torch.matmul(state.conj(), torch.matmul(obs, state.T)).to_dense().diag()
-        )
+        if dq.isket(state):
+            state = state.squeeze(-1)
+            exp_val = (
+                torch.matmul(state.conj(), torch.matmul(obs, state.T)).to_dense().diag()
+            )
+        elif dq.isdm(state):
+            exp_val = trace(torch.matmul(obs, state))
     else:
         exp_val = dq.expect(obs, state)
 
     return exp_val
+
+
+def trace(mat: Tensor) -> Tensor:
+    """calculate de trace of a 2D sparse tensor"""
+    n_qbit = int(torch.log2(torch.tensor([mat.shape[0]])))
+    tensprod_list = [dq.eye(2).to_sparse() for n in range(n_qbit)]
+    sparse_identity = kron(*tensprod_list)
+    return (mat * sparse_identity).sum()
+
+
+class StrEnum(str, Enum):
+    def __str__(self) -> str:
+        """Used when dumping enum fields in a schema."""
+        ret: str = self.value
+        return ret
+
+    @classmethod
+    def list(cls) -> list[str]:
+        return list(map(lambda c: c.value, cls))
+
+
+class SolverType(StrEnum):
+    DQ = "dq"
+    """Uses dynamiqs solver"""
+
+    DQ_ME = "dq_me"
+    """Uses dynamiqs master equation solver"""
+
+    KRYLOV = "krylov"
+    """Uses the krylov solver"""

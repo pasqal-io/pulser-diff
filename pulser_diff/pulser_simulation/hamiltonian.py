@@ -116,12 +116,12 @@ class Hamiltonian:
         local_collapse_ops = []
         if "dephasing" in config.noise_types:
             basis_check("dephasing")
-            coeff = np.sqrt(config.dephasing_rate / 2)
+            coeff = np.sqrt(float(config.dephasing_rate) / 2)
             local_collapse_ops.append(coeff * qutip.sigmaz())
 
         if "depolarizing" in config.noise_types:
             basis_check("dephasing")
-            coeff = np.sqrt(config.depolarizing_rate / 4)
+            coeff = np.sqrt(float(config.depolarizing_rate) / 4)
             local_collapse_ops.append(coeff * qutip.sigmax())
             local_collapse_ops.append(coeff * qutip.sigmay())
             local_collapse_ops.append(coeff * qutip.sigmaz())
@@ -129,7 +129,8 @@ class Hamiltonian:
         if "eff_noise" in config.noise_types:
             basis_check("effective")
             for id, rate in enumerate(config.eff_noise_rates):
-                local_collapse_ops.append(np.sqrt(rate) * config.eff_noise_opers[id])
+                oper = qutip.Qobj(config.eff_noise_opers[id].numpy())
+                local_collapse_ops.append(np.sqrt(float(rate)) * oper)
 
         # Building collapse operators
         self._collapse_ops = []

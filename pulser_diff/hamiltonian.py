@@ -29,8 +29,17 @@ from pulser_diff.pulser.backend.noise_model import NoiseModel
 from pulser_diff.pulser.devices._device_datacls import BaseDevice
 from pulser_diff.pulser.register.base_register import QubitId
 from pulser_diff.pulser.sampler.samples import SequenceSamples, _PulseTargetSlot
-from pulser_diff.pulser_simulation.simconfig import SUPPORTED_NOISES, doppler_sigma
+from pulser_diff.pulser_simulation.simconfig import doppler_sigma
 from pulser_diff.utils import kron
+
+SUPPORTED_NOISES: dict = {
+    "ising": {
+        "dephasing",
+        "depolarizing",
+        "eff_noise",
+    },
+    "XY": {},
+}
 
 
 class Hamiltonian:
@@ -121,19 +130,20 @@ class Hamiltonian:
         if "dephasing" in config.noise_types:
             basis_check("dephasing")
             coeff = torch.sqrt(config.dephasing_rate / 2)
-            local_collapse_ops.append(coeff * dq.sigmaz())
+            local_collapse_ops.append(coeff * dq.sigmaz().to_sparse())
 
         if "depolarizing" in config.noise_types:
-            basis_check("dephasing")
+            basis_check("depolarizing")
             coeff = torch.sqrt(config.depolarizing_rate / 4)
-            local_collapse_ops.append(coeff * dq.sigmax())
-            local_collapse_ops.append(coeff * dq.sigmay())
-            local_collapse_ops.append(coeff * dq.sigmaz())
+            local_collapse_ops.append(coeff * dq.sigmax().to_sparse())
+            local_collapse_ops.append(coeff * dq.sigmay().to_sparse())
+            local_collapse_ops.append(coeff * dq.sigmaz().to_sparse())
 
         if "eff_noise" in config.noise_types:
             basis_check("effective")
             for id, rate in enumerate(config.eff_noise_rates):
-                local_collapse_ops.append(torch.sqrt(rate) * config.eff_noise_opers[id])
+                oper = config.eff_noise_opers[id].to_sparse()
+                local_collapse_ops.append(torch.sqrt(rate) * oper)
 
         # Building collapse operators
         self._collapse_ops = []
@@ -150,10 +160,6 @@ class Hamiltonian:
         """
         if not isinstance(cfg, NoiseModel):
             raise ValueError(f"Object {cfg} is not a valid `NoiseModel`.")
-        if len(cfg.noise_types) > 0:
-            raise NotImplementedError(
-                "Noisy simulations are not supported by pulser-diff"
-            )
         not_supported = set(cfg.noise_types) - SUPPORTED_NOISES[self._interaction]
         if not_supported:
             raise NotImplementedError(

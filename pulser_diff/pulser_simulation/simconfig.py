@@ -21,6 +21,9 @@ from typing import Any, Literal, Optional, Tuple, Type, TypeVar, Union, cast
 
 import qutip
 
+import torch
+from torch import Tensor
+
 from pulser_diff.pulser.backend.noise_model import NoiseModel
 
 NOISE_TYPES = Literal[
@@ -31,6 +34,7 @@ KB = 1.38e-23  # J/K
 KEFF = 8.7  # µm^-1
 
 T = TypeVar("T", bound="SimConfig")
+
 
 SUPPORTED_NOISES: dict = {
     "ising": {
@@ -98,20 +102,20 @@ class SimConfig:
     noise: Union[NOISE_TYPES, tuple[NOISE_TYPES, ...]] = ()
     runs: int = 15
     samples_per_run: int = 5
-    temperature: float = 50.0
-    laser_waist: float = 175.0
-    amp_sigma: float = 5e-2
-    eta: float = 0.005
-    epsilon: float = 0.01
-    epsilon_prime: float = 0.05
-    dephasing_rate: float = 0.05
-    depolarizing_rate: float = 0.05
-    eff_noise_rates: list[float] = field(default_factory=list, repr=False)
-    eff_noise_opers: list[qutip.Qobj] = field(default_factory=list, repr=False)
+    temperature: Tensor = torch.tensor([50.0])
+    laser_waist: Tensor = torch.tensor([175.0])
+    amp_sigma: Tensor = torch.tensor([5e-2])
+    eta: Tensor = 0.005
+    epsilon: Tensor = 0.01
+    epsilon_prime: Tensor = 0.05
+    dephasing_rate: Tensor = 0.05
+    depolarizing_rate: Tensor = 0.05
+    eff_noise_rates: list[Tensor] = field(default_factory=list, repr=False)
+    eff_noise_opers: list[Tensor] = field(default_factory=list, repr=False)
     solver_options: Optional[qutip.Options] = None
-    dephasing_prob: float | None = None
-    depolarizing_prob: float | None = None
-    eff_noise_probs: list[float] = field(default_factory=list, repr=False)
+    dephasing_prob: Tensor | None = None
+    depolarizing_prob: Tensor | None = None
+    eff_noise_probs: list[Tensor] = field(default_factory=list, repr=False)
 
     @classmethod
     def from_noise_model(cls: Type[T], noise_model: NoiseModel) -> T:
@@ -129,7 +133,7 @@ class SimConfig:
             dephasing_rate=noise_model.dephasing_rate,
             depolarizing_rate=noise_model.depolarizing_rate,
             eff_noise_rates=noise_model.eff_noise_rates,
-            eff_noise_opers=list(map(qutip.Qobj, noise_model.eff_noise_opers)),
+            eff_noise_opers=noise_model.eff_noise_opers,
             dephasing_prob=noise_model.dephasing_prob,
             depolarizing_prob=noise_model.depolarizing_prob,
             eff_noise_probs=noise_model.eff_noise_probs,
@@ -150,7 +154,7 @@ class SimConfig:
             dephasing_rate=self.dephasing_rate,
             depolarizing_rate=self.depolarizing_rate,
             eff_noise_rates=self.eff_noise_rates,
-            eff_noise_opers=[op.full() for op in self.eff_noise_opers],
+            eff_noise_opers=self.eff_noise_opers,
             dephasing_prob=self.dephasing_prob,
             depolarizing_prob=self.depolarizing_prob,
             eff_noise_probs=self.eff_noise_probs,
@@ -162,9 +166,9 @@ class SimConfig:
             self._change_attribute("noise", (self.noise,))
 
         # Converts temperature from µK to K
-        if not isinstance(self.temperature, (int, float)):
+        if not isinstance(self.temperature, (Tensor)):
             raise TypeError(
-                f"'temperature' must be a float, not {type(self.temperature)}."
+                f"'temperature' must be a Tensor, not {type(self.temperature)}."
             )
         self._change_attribute("temperature", self.temperature / 1e6)
 
@@ -182,7 +186,7 @@ class SimConfig:
                 self._change_attribute(attr, getattr(noise_model, attr))
 
     @property
-    def spam_dict(self) -> dict[str, float]:
+    def spam_dict(self) -> dict[str, Tensor]:
         """A dictionary combining the SPAM error parameters."""
         return {
             "eta": self.eta,
@@ -191,7 +195,7 @@ class SimConfig:
         }
 
     @property
-    def doppler_sigma(self) -> float:
+    def doppler_sigma(self) -> Tensor:
         """Standard deviation for Doppler shifting due to thermal motion."""
         return doppler_sigma(self.temperature)
 
@@ -237,10 +241,8 @@ class SimConfig:
         # Check the validity of operators
         for operator in self.eff_noise_opers:
             # type checking
-            if not isinstance(operator, qutip.Qobj):
-                raise TypeError(f"{operator} is not a Qobj.")
-            if operator.type != "oper":
-                raise TypeError("Operators are supposed to be of Qutip type 'oper'.")
+            if not isinstance(operator, Tensor):
+                raise TypeError(f"{operator} is not a Tensor.")
 
     @property
     def supported_noises(self) -> dict:
