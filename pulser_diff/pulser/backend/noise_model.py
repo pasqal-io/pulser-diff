@@ -18,6 +18,9 @@ import warnings
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal, get_args
 
+import torch
+from torch import Tensor
+
 from pulser_diff.pulser.math import CompBackend as np
 
 NOISE_TYPES = Literal[
@@ -85,19 +88,19 @@ class NoiseModel:
     noise_types: tuple[NOISE_TYPES, ...] = ()
     runs: int = 15
     samples_per_run: int = 5
-    state_prep_error: float = 0.005
-    p_false_pos: float = 0.01
-    p_false_neg: float = 0.05
-    temperature: float = 50.0
-    laser_waist: float = 175.0
-    amp_sigma: float = 5e-2
-    dephasing_rate: float = 0.05
-    depolarizing_rate: float = 0.05
-    eff_noise_rates: list[float] = field(default_factory=list)
-    eff_noise_opers: list[np.ndarray] = field(default_factory=list)
-    dephasing_prob: float | None = None
-    depolarizing_prob: float | None = None
-    eff_noise_probs: list[float] = field(default_factory=list)
+    state_prep_error: Tensor = torch.tensor([0.005])
+    p_false_pos: Tensor = torch.tensor([0.01])
+    p_false_neg: Tensor = torch.tensor([0.05])
+    temperature: Tensor = torch.tensor([50.0])
+    laser_waist: Tensor = torch.tensor([175.0])
+    amp_sigma: Tensor = torch.tensor([5e-2])
+    dephasing_rate: Tensor = torch.tensor([0.05])
+    depolarizing_rate: Tensor = torch.tensor([0.05])
+    eff_noise_rates: list[Tensor] = field(default_factory=list)
+    eff_noise_opers: list[Tensor] = field(default_factory=list)
+    dephasing_prob: Tensor | None = None
+    depolarizing_prob: Tensor | None = None
+    eff_noise_probs: list[Tensor] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         default_field_value = {field.name: field.default for field in fields(self)}
@@ -199,9 +202,9 @@ class NoiseModel:
                 f"({len(self.eff_noise_rates)}) must be equal."
             )
         for rate in self.eff_noise_rates:
-            if not isinstance(rate, float):
+            if not isinstance(rate, Tensor):
                 raise TypeError(
-                    "eff_noise_rates is a list of floats,"
+                    "eff_noise_rates is a list of Tensor,"
                     f" it must not contain a {type(rate)}."
                 )
 
@@ -209,18 +212,15 @@ class NoiseModel:
             # Stop here if effective noise is not selected
             return
 
-        if not self.eff_noise_opers or not self.eff_noise_rates:
-            raise ValueError("The effective noise parameters have not been filled.")
-
-        if np.any(np.array(self.eff_noise_rates) < 0):
+        if torch.any(torch.stack(self.eff_noise_rates) < 0):
             raise ValueError("The provided rates must be greater than 0.")
 
         # Check the validity of operators
         for operator in self.eff_noise_opers:
             # type checking
-            if not isinstance(operator, np.ndarray):
-                raise TypeError(f"{operator} is not a Numpy array.")
-            if operator.shape != (2, 2):
+            if not isinstance(operator, Tensor):
+                raise TypeError(f"{operator} is not a Tensor.")
+            if operator.shape != torch.Size([2, 2]):
                 raise NotImplementedError(
                     "Operator's shape must be (2,2) " f"not {operator.shape}."
                 )

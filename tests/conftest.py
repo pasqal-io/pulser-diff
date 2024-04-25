@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import torch
 from qutip import Qobj
 from torch import Tensor
 
 import pulser_diff.dq as dq
-from pulser_diff.pulser import Register, Sequence
+from pulser_diff import TorchEmulator
+from pulser_diff.pulser import Pulse, Register, Sequence
 from pulser_diff.pulser.devices import MockDevice
+from pulser_diff.pulser_simulation import QutipEmulator
 
 
 @pytest.fixture
@@ -84,3 +87,38 @@ def total_magnetization_qt(total_magnetization_torch: Tensor) -> Qobj:
     # create total magnetization observable for qutip
     total_magnetization = Qobj(total_magnetization_torch.numpy())
     return total_magnetization
+
+
+def sequence(reg, amp_wf, det_wf) -> Sequence:
+    seq = Sequence(reg, MockDevice)
+    seq.declare_channel("rydberg_global", "rydberg_global")
+    seq.add(Pulse(amp_wf, det_wf, 0.0), "rydberg_global")
+    return seq
+
+
+@pytest.fixture
+def dq_sim(reg):
+    def callable_sim(amp_wf, det_wf, noise_config):
+        sim = TorchEmulator.from_sequence(sequence(reg, amp_wf, det_wf))
+        sim.set_evaluation_times(torch.linspace(0, 0.8, 3))
+        sim.set_config(noise_config)
+        return sim
+
+    return callable_sim
+
+
+@pytest.fixture
+def qt_sim(reg):
+    def callable_sim(amp_wf, det_wf, noise_config):
+        sim = QutipEmulator.from_sequence(sequence(reg, amp_wf, det_wf))
+        sim.set_evaluation_times(np.linspace(0, 0.8, 3))
+        sim.set_config(noise_config)
+        return sim
+
+    return callable_sim
+
+
+@pytest.fixture
+def hermitian():
+    vec = torch.rand(16, 1, dtype=torch.complex128)
+    return vec @ vec.mH

@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 import warnings
-from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, replace
 from typing import Any, Optional, Union, cast
@@ -35,16 +34,15 @@ from pulser_diff.pulser import Sequence
 from pulser_diff.pulser.backend.noise_model import NoiseModel
 from pulser_diff.pulser.devices._device_datacls import BaseDevice
 from pulser_diff.pulser.register.base_register import BaseRegister
-from pulser_diff.pulser.result import SampledResult
 from pulser_diff.pulser.sampler.samples import SequenceSamples
 from pulser_diff.pulser.sequence._seq_drawer import draw_samples
 from pulser_diff.pulser_simulation.simconfig import SimConfig
 from pulser_diff.result import DynamiqsResult
 from pulser_diff.simresults import (
     CoherentResults,
-    NoisyResults,
     SimulationResults,
 )
+from pulser_diff.utils import SolverType
 
 
 class TorchEmulator:
@@ -492,7 +490,7 @@ class TorchEmulator:
         time_grad: bool = False,
         dist_grad: bool = False,
         progress_bar: bool = False,
-        solver: str = "dq",
+        solver: SolverType = SolverType.DQ,
         **options: Any,
     ) -> SimulationResults:
         """Simulates the sequence using QuTiP's solvers.
@@ -544,17 +542,19 @@ class TorchEmulator:
                 options["max_step"] = 0.5 * min(pulse_durations) / 1000
 
         meas_errors: Optional[Mapping[str, float]] = None
-        if "SPAM" in self.config.noise:
-            meas_errors = {
-                k: self.config.spam_dict[k] for k in ("epsilon", "epsilon_prime")
-            }
-            if self.config.eta > 0 and self.initial_state != dq.tensprod(
-                *[self._hamiltonian.basis["g"] for _ in range(self._hamiltonian._size)]
-            ):
-                raise NotImplementedError(
-                    "Can't combine state preparation errors with an initial "
-                    "state different from the ground."
-                )
+
+        if not all(
+            (noise in {"depolarizing", "dephasing", "eff_noise"})
+            for noise in self.config.noise
+        ):
+            raise NotImplementedError("Those noise types are not supported")
+
+        if (
+            "dephasing" in self.config.noise
+            or "depolarizing" in self.config.noise
+            or "eff_noise" in self.config.noise
+        ):
+            solver = SolverType.DQ_ME
 
         def _run_solver() -> CoherentResults:
             """Returns CoherentResults: Object containing evolution results."""
@@ -567,39 +567,41 @@ class TorchEmulator:
             else:
                 raise ValueError("`progress_bar` must be a bool.")
 
-            if (
-                "dephasing" in self.config.noise
-                or "depolarizing" in self.config.noise
-                or "eff_noise" in self.config.noise
-            ):
-                raise NotImplementedError("Master equation solver not implemented.")
-                # result = dq.mesolve(
-                #     self._hamiltonian._hamiltonian,
-                #     self.initial_state,
-                #     self._eval_times_array,
-                #     self._hamiltonian._collapse_ops,
-                #     progress_bar=p_bar,
-                # )
-            else:
-                if solver == "dq":
-                    result = dq.sesolve(
-                        H=CallableTimeTensor(  # type: ignore [abstract]
-                            self._hamiltonian._hamiltonian,
-                            self._hamiltonian._hamiltonian(0.0),
-                        ),
-                        psi0=self.initial_state,
-                        tsave=self._eval_times_array,
-                        options=dict(verbose=True if progress_bar else False),
-                    )
-                elif solver == "krylov":
-                    result = sesolve_krylov(
-                        H=self._hamiltonian._hamiltonian,
-                        psi0=self.initial_state,
-                        tsave=self._eval_times_array,
-                        progress_bar=progress_bar,
-                    )
+            if solver == SolverType.DQ:
+                result = dq.sesolve(
+                    H=CallableTimeTensor(  # type: ignore [abstract]
+                        self._hamiltonian._hamiltonian,
+                        self._hamiltonian._hamiltonian(0.0),
+                    ),
+                    psi0=self.initial_state,
+                    tsave=self._eval_times_array,
+                    options=dict(verbose=True if progress_bar else False),
+                )
+            elif solver == SolverType.KRYLOV:
+                result = sesolve_krylov(
+                    H=self._hamiltonian._hamiltonian,
+                    psi0=self.initial_state,
+                    tsave=self._eval_times_array,
+                    progress_bar=progress_bar,
+                )
+            elif solver == SolverType.DQ_ME:
+                if not self.config.noise:
+                    dim = 2 ** len(self._register.qubits)
+                    collapse_ops = [torch.zeros(dim, dim).to_sparse()]
                 else:
-                    raise ValueError(f"Solver {solver} not available.")
+                    collapse_ops = self._hamiltonian._collapse_ops
+
+                result = dq.mesolve(
+                    H=CallableTimeTensor(
+                        self._hamiltonian._hamiltonian,
+                        self._hamiltonian._hamiltonian(0.0),
+                    ),
+                    jump_ops=collapse_ops,
+                    rho0=self.initial_state,
+                    tsave=self._eval_times_array,
+                )
+            else:
+                raise ValueError(f"Solver {solver} not available.")
             results = [
                 DynamiqsResult(
                     tuple(self._hamiltonian._qdict),
@@ -618,78 +620,7 @@ class TorchEmulator:
                 meas_errors,
             )
 
-        # Check if noises ask for averaging over multiple runs:
-        if set(self.config.noise).issubset(
-            {"dephasing", "SPAM", "depolarizing", "eff_noise"}
-        ):
-            # If there is "SPAM", the preparation errors must be zero
-            if "SPAM" not in self.config.noise or self.config.eta == 0:
-                return _run_solver()
-
-            else:
-                # Stores the different initial configurations and frequency
-                initial_configs = Counter(
-                    "".join(
-                        (
-                            torch.rand(size=len(self._hamiltonian._qid_index))
-                            < self.config.eta
-                        )
-                        .astype(int)
-                        .astype(str)  # Turns bool->int->str
-                    )
-                    for _ in range(self.config.runs)
-                ).most_common()
-                loop_runs = len(initial_configs)
-                update_ham = False
-        else:
-            loop_runs = self.config.runs
-            update_ham = True
-
-        # Will return NoisyResults
-        time_indices = range(len(self._eval_times_array))
-        total_count = torch.tensor([Counter() for _ in time_indices])
-        # We run the system multiple times
-        for i in range(loop_runs):
-            if not update_ham:
-                initial_state, reps = initial_configs[i]
-                # We load the initial state manually
-                self._hamiltonian._bad_atoms = dict(
-                    zip(
-                        self._hamiltonian._qid_index,
-                        torch.tensor(list(initial_state)).astype(bool),
-                    )
-                )
-            else:
-                reps = 1
-            # At each run, new random noise: new Hamiltonian
-            self._hamiltonian._construct_hamiltonian(update=update_ham)
-            # Get CoherentResults instance from sequence with added noise:
-            cleanres_noisyseq = _run_solver()
-            # Extract statistics at eval time:
-            total_count += torch.tensor(
-                [
-                    cleanres_noisyseq.sample_state(
-                        t, n_samples=self.config.samples_per_run * reps
-                    )
-                    for t in self._eval_times_array
-                ]
-            )
-        n_measures = self.config.runs * self.config.samples_per_run
-        results = [
-            SampledResult(
-                tuple(self._hamiltonian._qdict),
-                self._meas_basis,
-                total_count[t],
-            )
-            for t in time_indices
-        ]
-        return NoisyResults(
-            results,
-            self._hamiltonian._size,
-            self._hamiltonian.basis_name,
-            self._eval_times_array,
-            n_measures,
-        )
+        return _run_solver()
 
     def draw(
         self,

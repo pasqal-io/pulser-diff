@@ -126,7 +126,7 @@ def test_expectation(
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", ["dq", "krylov", "dq_me"])
 def test_time_derivative(
     solver: str,
     seq: Sequence,
@@ -173,7 +173,7 @@ def test_time_derivative(
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", ["dq", "krylov", "dq_me"])
 def test_pulse_param_derivative(
     solver: str,
     reg: Register,
@@ -244,7 +244,7 @@ def test_pulse_param_derivative(
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", ["dq", "krylov", "dq_me"])
 def test_register_coords_derivative(
     solver: str,
     duration: int,

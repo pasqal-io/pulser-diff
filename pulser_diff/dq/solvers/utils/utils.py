@@ -2,15 +2,16 @@ from __future__ import annotations
 
 from functools import partial
 from math import sqrt
-from typing import Iterator
+from typing import Iterator, get_args
 
 import torch
 from torch import Tensor
 from tqdm import tqdm as std_tqdm
 
+from pulser_diff.dq._utils import obj_type_str
 from pulser_diff.dq.time_tensor import TimeTensor
 from pulser_diff.dq.utils.tensor_types import ArrayLike
-from pulser_diff.dq.utils.utils import isket, obj_type_str
+from pulser_diff.dq.utils.utils import isket
 
 # define a default progress bar format
 PBAR_FORMAT = "|{bar}| {percentage:4.1f}% - time {elapsed}/{remaining}"

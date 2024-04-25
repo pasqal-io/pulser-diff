@@ -4,7 +4,7 @@ from typing import Any
 
 import torch
 
-from pulser_diff.dq.utils.utils import to_device
+from pulser_diff.dq._utils import to_device
 from pulser_diff.dq.solver import Dopri5
 from pulser_diff.dq.utils.tensor_types import dtype_complex_to_real, get_cdtype
 

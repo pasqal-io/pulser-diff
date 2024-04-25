@@ -5,7 +5,7 @@ from abc import abstractmethod, abstractproperty
 import torch
 from torch import Tensor
 
-from pulser_diff.dq.utils.utils import cache, obj_type_str, type_str
+from pulser_diff.dq._utils import cache, obj_type_str, type_str
 from pulser_diff.dq.utils.tensor_types import (
     ArrayLike,
     Number,
@@ -193,39 +193,27 @@ class CallableTimeTensor(TimeTensor):
 
     @abstractmethod
     def adjoint(self) -> TimeTensor:
-        def f(t):
-            return self.f(t).adjoint()
-
+        f = lambda t: self.f(t).adjoint()
         f0 = self.f0.adjoint()
         return CallableTimeTensor(f, f0)
 
     def __neg__(self) -> TimeTensor:
-        def f(t):
-            return -self.f(t)
-
+        f = lambda t: -self.f(t)
         f0 = -self.f0
         return CallableTimeTensor(f, f0)
 
     def __mul__(self, other: Number | Tensor) -> TimeTensor:
-        def f(t):
-            return self.f(t) * other
-
+        f = lambda t: self.f(t) * other
         f0 = self.f0 * other
         return CallableTimeTensor(f, f0)
 
     def __add__(self, other: Tensor | TimeTensor) -> TimeTensor:
         if isinstance(other, Tensor):
-
-            def f(t):
-                return self.f(t) + other
-
+            f = lambda t: self.f(t) + other
             f0 = self.f0 + other
             return CallableTimeTensor(f, f0)
         elif isinstance(other, CallableTimeTensor):
-
-            def f(t):
-                return self.f(t) + other.f(t)
-
+            f = lambda t: self.f(t) + other.f(t)
             f0 = self.f0 + other.f0
             return CallableTimeTensor(f, f0)
         else:
