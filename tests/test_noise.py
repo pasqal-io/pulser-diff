@@ -54,9 +54,11 @@ def test_expect_sparse_dm(hermitian):
     density_matrix = hermitian / trace(hermitian)
     sparse_density_matrix = density_matrix.to_sparse()
     obs = total_magnetization(4)
-    assert expect(obs, density_matrix) == expect(obs, sparse_density_matrix)
+    assert torch.allclose(
+        expect(obs, density_matrix), expect(obs, sparse_density_matrix)
+    )
 
 
 def test_trace(hermitian):
     sparse_H = hermitian.to_sparse()
-    assert hermitian.trace() == trace(sparse_H)
+    assert torch.allclose(hermitian.trace(), trace(sparse_H))
