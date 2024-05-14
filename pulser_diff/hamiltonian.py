@@ -33,11 +33,7 @@ from pulser_diff.pulser_simulation.simconfig import doppler_sigma
 from pulser_diff.utils import kron
 
 SUPPORTED_NOISES: dict = {
-    "ising": {
-        "dephasing",
-        "depolarizing",
-        "eff_noise",
-    },
+    "ising": {"dephasing", "depolarizing", "eff_noise", "amplitude"},
     "XY": {},
 }
 
@@ -198,7 +194,7 @@ class Hamiltonian:
             Taking into account, if necessary, noise effects, which are local
             and depend on the qubit's id qid.
             """
-            noise_amp_base = max(0, torch.normal(1.0, self.config.amp_sigma))
+
             for qid in slot.targets:
                 if "doppler" in self.config.noise_types:
                     noise_det = self._doppler_detune[qid]
@@ -209,7 +205,7 @@ class Hamiltonian:
                     position = self._qdict[qid]
                     r = torch.linalg.norm(position)
                     w0 = self.config.laser_waist
-                    noise_amp = noise_amp_base * torch.exp(-((r / w0) ** 2))
+                    noise_amp = torch.exp(-((r / w0) ** 2))
                     samples_dict[qid]["amp"][slot.ti : slot.tf] *= noise_amp
 
         if local_noises:

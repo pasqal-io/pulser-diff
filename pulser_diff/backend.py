@@ -28,7 +28,7 @@ from torch import Tensor
 import pulser_diff.dq as dq
 import pulser_diff.pulser.sampler as sampler
 from pulser_diff.dq.time_tensor import CallableTimeTensor
-from pulser_diff.hamiltonian import Hamiltonian
+from pulser_diff.hamiltonian import SUPPORTED_NOISES, Hamiltonian
 from pulser_diff.krylov import sesolve_krylov
 from pulser_diff.pulser import Sequence
 from pulser_diff.pulser.backend.noise_model import NoiseModel
@@ -544,7 +544,7 @@ class TorchEmulator:
         meas_errors: Optional[Mapping[str, float]] = None
 
         if not all(
-            (noise in {"depolarizing", "dephasing", "eff_noise"})
+            (noise in SUPPORTED_NOISES[self._hamiltonian._interaction])
             for noise in self.config.noise
         ):
             raise NotImplementedError("Those noise types are not supported")
@@ -585,7 +585,7 @@ class TorchEmulator:
                     progress_bar=progress_bar,
                 )
             elif solver == SolverType.DQ_ME:
-                if not self.config.noise:
+                if self._hamiltonian._collapse_ops == []:
                     dim = 2 ** len(self._register.qubits)
                     collapse_ops = [torch.zeros(dim, dim).to_sparse()]
                 else:

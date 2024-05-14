@@ -195,7 +195,7 @@ class Hamiltonian:
                 if "amplitude" in self.config.noise_types and is_global_pulse:
                     position = self._qdict[qid]
                     r = np.linalg.norm(position)
-                    w0 = self.config.laser_waist
+                    w0 = self.config.laser_waist.numpy()
                     noise_amp = noise_amp_base * np.exp(-((r / w0) ** 2))
                     samples_dict[qid]["amp"][slot.ti : slot.tf] *= noise_amp
 
