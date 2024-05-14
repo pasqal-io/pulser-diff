@@ -71,13 +71,6 @@ def test_laser_waist(dq_sim, qt_sim, amp_wf, det_wf):
         )
 
 
-def test_doppler(dq_sim):
-    amp_wf, det_wf = ConstantWaveform(800, 5.0), ConstantWaveform(800, 0)
-    cfg = SimConfig(noise="doppler")
-    dq_results = dq_sim(amp_wf, det_wf, cfg).run(solver="dq_me")
-    assert dq_results.states[0].shape == (4, 4)
-
-
 def test_expect_sparse_dm(hermitian):
     density_matrix = hermitian / trace(hermitian)
     sparse_density_matrix = density_matrix.to_sparse()

@@ -49,7 +49,7 @@ SUPPORTED_NOISES: dict = {
 }
 
 
-def doppler_sigma(temperature: Tensor) -> Tensor:
+def doppler_sigma(temperature: float) -> float:
     """Standard deviation for Doppler shifting due to thermal motion.
 
     Arg:
