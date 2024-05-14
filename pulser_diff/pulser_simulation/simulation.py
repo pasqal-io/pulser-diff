@@ -565,11 +565,15 @@ class QutipEmulator:
 
         # Check if noises ask for averaging over multiple runs:
         if set(self.config.noise).issubset(
-            {"dephasing", "SPAM", "depolarizing", "eff_noise"}
+            {"dephasing", "SPAM", "depolarizing", "eff_noise", "amplitude"}
         ):
             # If there is "SPAM", the preparation errors must be zero
             if "SPAM" not in self.config.noise or self.config.eta == 0:
-                return _run_solver()
+                if "amplitude" not in self.config.noise or self.config.amp_sigma == 0:
+                    return _run_solver()
+                else:
+                    loop_runs = self.config.runs
+                    update_ham = True
 
             else:
                 # Stores the different initial configurations and frequency
