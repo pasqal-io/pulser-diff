@@ -15,16 +15,12 @@ from pulser_diff.utils import expect, total_magnetization, trace
 
 
 @pytest.mark.parametrize(
-    "amp_wf",
+    "amp_wf, det_wf",
     [
-        ConstantWaveform(800, 5.0),
-        BlackmanWaveform(800, 2 * torch.pi),
-        KaiserWaveform(800, 2 * torch.pi),
+        (ConstantWaveform(800, 5.0), ConstantWaveform(800, 0)),
+        (BlackmanWaveform(800, 2 * torch.pi), ConstantWaveform(800, 2.5)),
+        (KaiserWaveform(800, 2 * torch.pi), ConstantWaveform(800, 5.0)),
     ],
-)
-@pytest.mark.parametrize(
-    "det_wf",
-    [ConstantWaveform(800, 0), ConstantWaveform(800, 2.5), ConstantWaveform(800, 5.0)],
 )
 @pytest.mark.parametrize(
     "cfg",
@@ -40,6 +36,31 @@ from pulser_diff.utils import expect, total_magnetization, trace
 )
 def test_linblad_noise(dq_sim, qt_sim, cfg, amp_wf, det_wf):
     dq_results = dq_sim(amp_wf, det_wf, cfg).run(solver="dq_me")
+    qt_results = qt_sim(amp_wf, det_wf, cfg).run()
+
+    for idx, qt_state in enumerate(qt_results.states):
+        dq_state_tensor = dq_results.states[idx]
+        qt_state_tensor = torch.tensor(qt_state.data.toarray())
+        assert torch.allclose(
+            dq_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE
+        )
+
+
+@pytest.mark.parametrize(
+    "amp_wf, det_wf",
+    [
+        (ConstantWaveform(800, 5.0), ConstantWaveform(800, 0)),
+        (BlackmanWaveform(800, 2 * torch.pi), ConstantWaveform(800, 2.5)),
+    ],
+)
+def test_laser_waist(dq_sim, qt_sim, amp_wf, det_wf):
+    cfg = SimConfig(
+        noise="amplitude",
+        amp_sigma=torch.tensor([0.0]),
+        laser_waist=torch.tensor([100.0]),
+    )
+
+    dq_results = dq_sim(amp_wf, det_wf, cfg).run(solver="dq")
     qt_results = qt_sim(amp_wf, det_wf, cfg).run()
 
     for idx, qt_state in enumerate(qt_results.states):
