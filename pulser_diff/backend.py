@@ -575,7 +575,7 @@ class TorchEmulator:
                     ),
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
-                    options=dict(verbose=True if progress_bar else False),
+                    options=dict(verbose=True if p_bar else False),
                 )
             elif solver == SolverType.KRYLOV:
                 result = sesolve_krylov(
@@ -599,6 +599,7 @@ class TorchEmulator:
                     jump_ops=collapse_ops,
                     rho0=self.initial_state,
                     tsave=self._eval_times_array,
+                    options=dict(verbose=True if p_bar else False),
                 )
             else:
                 raise ValueError(f"Solver {solver} not available.")
