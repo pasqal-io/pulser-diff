@@ -105,11 +105,11 @@ class SimConfig:
     temperature: Tensor = torch.tensor([50.0])
     laser_waist: Tensor = torch.tensor([175.0])
     amp_sigma: Tensor = torch.tensor([5e-2])
-    eta: Tensor = 0.005
-    epsilon: Tensor = 0.01
-    epsilon_prime: Tensor = 0.05
-    dephasing_rate: Tensor = 0.05
-    depolarizing_rate: Tensor = 0.05
+    eta: float = 0.005
+    epsilon: float = 0.01
+    epsilon_prime: float = 0.05
+    dephasing_rate: float = 0.05
+    depolarizing_rate: float = 0.05
     eff_noise_rates: list[Tensor] = field(default_factory=list, repr=False)
     eff_noise_opers: list[Tensor] = field(default_factory=list, repr=False)
     solver_options: Optional[qutip.Options] = None
