@@ -33,7 +33,7 @@ from pulser_diff.pulser_simulation.simconfig import doppler_sigma
 from pulser_diff.utils import kron
 
 SUPPORTED_NOISES: dict = {
-    "ising": {"dephasing", "depolarizing", "eff_noise", "amplitude"},
+    "ising": {"dephasing", "depolarizing", "eff_noise", "amplitude", "doppler"},
     "XY": {},
 }
 
@@ -291,7 +291,7 @@ class Hamiltonian:
             detune = torch.normal(
                 0,
                 doppler_sigma(self.config.temperature / 1e6),
-                size=len(self._qid_index),
+                size=(len(self._qid_index),),
             )
             self._doppler_detune = dict(zip(self._qid_index, detune))
 
