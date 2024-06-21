@@ -4,7 +4,8 @@ from enum import Enum
 from functools import lru_cache
 
 import torch
-from torch import Tensor
+from torch import Tensor, log2
+from torch.linalg import eigvalsh
 
 import pulser_diff.dq as dq
 
@@ -73,7 +74,12 @@ def expect(obs: Tensor, state: Tensor) -> Tensor:
                 torch.matmul(state.conj(), torch.matmul(obs, state.T)).to_dense().diag()
             )
         elif dq.isdm(state):
-            exp_val = trace(torch.matmul(obs, state))
+            if len(state.size()) == 3:  # if there is a batch of tensors
+                exp_val = torch.stack(
+                    [trace(torch.matmul(obs, state_i)) for state_i in state]
+                )
+            elif len(state.size()) == 2:  # if there is only one state
+                exp_val = trace(torch.matmul(obs, state))
     else:
         exp_val = dq.expect(obs, state)
 
@@ -86,6 +92,17 @@ def trace(mat: Tensor) -> Tensor:
     tensprod_list = [dq.eye(2).to_sparse() for n in range(n_qbit)]
     sparse_identity = kron(*tensprod_list)
     return (mat * sparse_identity).sum()
+
+
+def vn_entropy(rho: Tensor) -> Tensor:
+    """calculate the Von Neumann entropy of a density matrix"""
+    ev = eigvalsh(rho)
+    vne = 0
+    for k in range(rho.shape[0]):
+        if ev[k] > 0:
+            vne += -ev[k] * log2(ev[k])
+
+    return vne
 
 
 class StrEnum(str, Enum):

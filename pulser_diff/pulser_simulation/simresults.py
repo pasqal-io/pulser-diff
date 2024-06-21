@@ -196,7 +196,7 @@ class SimulationResults(ABC, Results[ResultType]):
             proj = qutip.tensor([self._meas_projector(int(i)) for i in bitstring])
             return proj
 
-        w = self[t_index]._weights()
+        w = self[t_index]._weights().numpy()
         return sum(
             w[i] * _proj_from_bitstring(np.binary_repr(i, width=self._size))
             for i in np.nonzero(w)[0]
