@@ -401,7 +401,7 @@ class CoherentResults(SimulationResults):
 
     @property
     def states(self) -> Tensor:
-        """List of ``Tensor`` for each state in the simulation."""
+        """List of ``qutip.Qobj`` for each state in the simulation."""
         return torch.stack([res.state for res in self])
 
     def get_state(

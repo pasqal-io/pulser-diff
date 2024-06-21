@@ -484,7 +484,7 @@ class TorchEmulator:
             )
         return self._hamiltonian._hamiltonian(time / 1000)  # Creates new Qutip.Qobj
 
-    # Run Simulation Evolution using Dynamiqs
+    # Run Simulation Evolution using Qutip
     def run(
         self,
         time_grad: bool = False,
@@ -556,7 +556,7 @@ class TorchEmulator:
         ):
             solver = SolverType.DQ_ME
 
-        def _run_solver(ham) -> CoherentResults:
+        def _run_solver() -> CoherentResults:
             """Returns CoherentResults: Object containing evolution results."""
             # Decide if progress bar will be fed to QuTiP solver
             p_bar: Optional[bool]
@@ -570,16 +570,16 @@ class TorchEmulator:
             if solver == SolverType.DQ:
                 result = dq.sesolve(
                     H=CallableTimeTensor(  # type: ignore [abstract]
-                        ham,
-                        ham(0.0),
+                        self._hamiltonian._hamiltonian,
+                        self._hamiltonian._hamiltonian(0.0),
                     ),
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
-                    options=dict(verbose=True if p_bar else False),
+                    options=dict(verbose=True if progress_bar else False),
                 )
             elif solver == SolverType.KRYLOV:
                 result = sesolve_krylov(
-                    H=ham,
+                    H=self._hamiltonian._hamiltonian,
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
                     progress_bar=progress_bar,
@@ -593,53 +593,15 @@ class TorchEmulator:
 
                 result = dq.mesolve(
                     H=CallableTimeTensor(
-                        ham,
-                        ham(0.0),
+                        self._hamiltonian._hamiltonian,
+                        self._hamiltonian._hamiltonian(0.0),
                     ),
                     jump_ops=collapse_ops,
                     rho0=self.initial_state,
                     tsave=self._eval_times_array,
-                    options=dict(verbose=True if p_bar else False),
                 )
             else:
                 raise ValueError(f"Solver {solver} not available.")
-
-            return result
-
-        is_stochastic = ("doppler" in self.config.noise) or (
-            "amplitude" in self.config.noise and self.config.amp_sigma != 0
-        )
-
-        if is_stochastic:
-            result = []
-            for k in range(self.config.runs):
-                res = _run_solver(self._hamiltonian._hamiltonian)
-                self._hamiltonian._construct_hamiltonian(update=True)
-                result.append(res.states)
-
-            if solver == SolverType.DQ_ME:
-                states = (1 / self.config.runs) * sum(result)
-            else:
-                n_times = len(result[0])
-                states = []
-                for k in range(n_times):
-                    states.append(
-                        (1 / self.config.runs)
-                        * sum([x[k].matmul(x[k].mH) for x in result])
-                    )
-
-            results = [
-                DynamiqsResult(
-                    tuple(self._hamiltonian._qdict),
-                    self._meas_basis,
-                    state,
-                    self._meas_basis == self._hamiltonian.basis_name,
-                )
-                for state in states
-            ]
-
-        else:  # if there is no needs for several runs
-            result = _run_solver(self._hamiltonian._hamiltonian)
             results = [
                 DynamiqsResult(
                     tuple(self._hamiltonian._qdict),
@@ -649,14 +611,16 @@ class TorchEmulator:
                 )
                 for state in result.states
             ]
-        return CoherentResults(
-            results,
-            self._hamiltonian._size,
-            self._hamiltonian.basis_name,
-            self._eval_times_array,
-            self._meas_basis,
-            meas_errors,
-        )
+            return CoherentResults(
+                results,
+                self._hamiltonian._size,
+                self._hamiltonian.basis_name,
+                self._eval_times_array,
+                self._meas_basis,
+                meas_errors,
+            )
+
+        return _run_solver()
 
     def draw(
         self,
