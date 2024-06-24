@@ -5,6 +5,9 @@ import torch
 from metrics import ATOL_NOISE, RTOL_NOISE
 
 import pulser_diff.dq as dq
+from pulser_diff import TorchEmulator
+from pulser_diff.pulser import Pulse, Register, Sequence
+from pulser_diff.pulser.devices import MockDevice
 from pulser_diff.pulser.waveforms import (
     BlackmanWaveform,
     ConstantWaveform,
@@ -117,3 +120,14 @@ def test_expect_sparse_dm(hermitian):
 def test_trace(hermitian):
     sparse_H = hermitian.to_sparse()
     assert torch.allclose(hermitian.trace(), trace(sparse_H))
+
+
+def test_1qbit():
+    reg = Register({"q0": torch.tensor([0.0, 0.0])})
+    seq = Sequence(reg, MockDevice)
+    seq.declare_channel("rydberg_global", "rydberg_global")
+    seq.add(Pulse.ConstantPulse(100, 2.0, 1.0, 0.0), "rydberg_global")
+
+    sim = TorchEmulator.from_sequence(seq, evaluation_times="Full")
+    res = sim.run()
+    assert res.states.shape[0] == 101
