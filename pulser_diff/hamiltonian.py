@@ -516,7 +516,10 @@ class Hamiltonian:
 
     def build_ham_tensor(self, qobj_list: list) -> Callable:
         # get interaction, amplitude and detuning components
-        int_mat = qobj_list[0]
+        if self._size > 1:
+            int_mat = qobj_list[0]
+        else:
+            int_mat = torch.zeros((2, 2), dtype=torch.complex128).to_sparse()
         amp_matrices = []
         amp_values = []
         det_matrices = []
@@ -534,7 +537,7 @@ class Hamiltonian:
 
         # calculate time step and sample length
         dt = 0.001 / self._sampling_rate
-        n_samples = len(amp_values[0])
+        n_samples = len(qobj_list[-1][1])
 
         def H_t(t: float | Tensor) -> Tensor:
             # make sure that time is a tensor
