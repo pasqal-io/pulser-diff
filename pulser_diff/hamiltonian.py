@@ -518,13 +518,14 @@ class Hamiltonian:
         # get interaction, amplitude and detuning components
         if self._size > 1:
             int_mat = qobj_list[0]
+            qobj_list = qobj_list[1:]
         else:
             int_mat = torch.zeros((2, 2), dtype=torch.complex128).to_sparse()
         amp_matrices = []
         amp_values = []
         det_matrices = []
         det_values = []
-        for i in range(1, len(qobj_list)):
+        for i in range(len(qobj_list)):
             mat = qobj_list[i][0]
             if torch.equal(mat.indices()[0], mat.indices()[1]):
                 # is diagonal - detuning part
