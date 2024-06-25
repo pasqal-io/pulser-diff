@@ -13,7 +13,7 @@ from pulser_diff.pulser.waveforms import (
     ConstantWaveform,
     KaiserWaveform,
 )
-from pulser_diff.pulser_simulation import SimConfig
+from pulser_diff.pulser_simulation import QutipEmulator, SimConfig
 from pulser_diff.utils import expect, total_magnetization, trace, vn_entropy
 
 
@@ -128,6 +128,15 @@ def test_1qbit():
     seq.declare_channel("rydberg_global", "rydberg_global")
     seq.add(Pulse.ConstantPulse(100, 2.0, 1.0, 0.0), "rydberg_global")
 
-    sim = TorchEmulator.from_sequence(seq, evaluation_times="Full")
-    res = sim.run()
-    assert res.states.shape[0] == 101
+    sim_dq = TorchEmulator.from_sequence(seq)
+    sim_qt = QutipEmulator.from_sequence(seq)
+
+    res_dq = sim_dq.run()
+    res_qt = sim_qt.run()
+
+    assert torch.allclose(
+        res_dq.states[-1],
+        torch.tensor(res_qt.states[-1].data.toarray()),
+        ATOL_NOISE,
+        RTOL_NOISE,
+    )
