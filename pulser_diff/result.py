@@ -15,18 +15,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Union, cast
+from typing import Union
 
 import numpy as np
 import torch
+from pulser.register import QubitId
+from pulser.result import Result
 from torch import Tensor
-
-from pulser_diff.pulser.register import QubitId
-from pulser_diff.pulser.result import Result
 
 
 @dataclass
-class DynamiqsResult(Result):
+class TorchResult(Result):
     """Represents the result of a run as a torch tensor.
 
     Args:
@@ -57,7 +56,7 @@ class DynamiqsResult(Result):
         full_state_size = torch.prod(torch.tensor(self.state.shape))
         if not self.state.shape[1] == 1:
             full_state_size = torch.sqrt(full_state_size)
-        return cast(int, int(torch.round(full_state_size ** (1 / self._size))))
+        return int(torch.round(full_state_size ** (1 / self._size)))
 
     @property
     def _basis_name(self) -> str:
@@ -66,12 +65,10 @@ class DynamiqsResult(Result):
         if self.meas_basis == "XY":
             return "XY"
         if not self.matching_meas_basis:
-            return (
-                "digital" if self.meas_basis == "ground-rydberg" else "ground-rydberg"
-            )
+            return "digital" if self.meas_basis == "ground-rydberg" else "ground-rydberg"
         return self.meas_basis
 
-    def _weights(self) -> Tensor:
+    def _weights(self) -> Tensor:  # type: ignore [override]
         n = self._size
         if not self.state.shape[1] == 1:
             probs = torch.abs(self.state.diag())
@@ -84,9 +81,7 @@ class DynamiqsResult(Result):
                 # e.g. n=2: [rr, rg, gr, gg] -> [11, 10, 01, 00]
                 # Invert the order ->  [00, 01, 10, 11] correspondence
                 # In the XY and digital bases, the order is canonical
-                weights = (
-                    probs.flip(0) if self.meas_basis == "ground-rydberg" else probs
-                )
+                weights = probs.flip(0) if self.meas_basis == "ground-rydberg" else probs
             else:
                 # Only 000...000 is measured
                 weights = torch.zeros(probs.shape)
@@ -101,8 +96,7 @@ class DynamiqsResult(Result):
                 ex_one = slice(0, 2)
             else:
                 raise RuntimeError(
-                    f"Unknown measurement basis '{self.meas_basis}' "
-                    "for a three-level system.'"
+                    f"Unknown measurement basis '{self.meas_basis}' for a three-level system.'"
                 )
             probs = probs.reshape([3] * n)
             weights = torch.zeros(2**n)
@@ -120,11 +114,10 @@ class DynamiqsResult(Result):
                 weights[dec_val] = torch.sum(probs[tuple(ind)])
         else:
             raise NotImplementedError(
-                "Cannot sample system with single-atom state vectors of "
-                "dimension > 3."
+                "Cannot sample system with single-atom state vectors of " "dimension > 3."
             )
         # Takes care of numerical artefacts in case sum(weights) != 1
-        return cast(Tensor, weights / sum(weights))
+        return weights / sum(weights)
 
     def get_state(
         self,

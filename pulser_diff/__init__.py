@@ -14,5 +14,5 @@
 """Classes for classical emulation of a Sequence."""
 from __future__ import annotations
 
-import pulser_diff.pulser.torch
 from pulser_diff.backend import TorchEmulator
+from pulser_diff.simconfig import SimConfig

@@ -18,9 +18,9 @@ before_script:
 lint-and-type-check:
   stage: lint
   script:
-    - pip install pre-commit pyproject-flake8
-    - pre-commit install
-    - pre-commit run --all-files
+    - python -m hatch run pip install pre-commit pyproject-flake8
+    - python -m hatch run pre-commit install
+    - python -m hatch run pre-commit run --all-files
 
 .test:
   rules:

@@ -1,48 +1,35 @@
-# Copyright 2020 Pulser Development Team
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#    http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-"""Defines the QutipEmulator, used to simulate a Sequence or its samples."""
-
 from __future__ import annotations
 
-import warnings
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import asdict, replace
 from typing import Any, Optional, Union, cast
 
 import matplotlib.pyplot as plt
+import numpy as np
+import pulser.sampler as sampler
 import torch
 from numpy.typing import ArrayLike
+from pulser import Sequence
+from pulser.devices._device_datacls import BaseDevice
+from pulser.noise_model import NoiseModel
+from pulser.register.base_register import BaseRegister
+from pulser.result import SampledResult
+from pulser.sampler.samples import ChannelSamples, SequenceSamples
+from pulser.sequence._seq_drawer import draw_samples
+from pyqtorch import mesolve, sesolve
+from pyqtorch.utils import SolverType
 from torch import Tensor
 
-import pulser_diff.dq as dq
-import pulser_diff.pulser.sampler as sampler
-from pulser_diff.dq.time_tensor import CallableTimeTensor
-from pulser_diff.hamiltonian import SUPPORTED_NOISES, Hamiltonian
-from pulser_diff.krylov import sesolve_krylov
-from pulser_diff.pulser import Sequence
-from pulser_diff.pulser.backend.noise_model import NoiseModel
-from pulser_diff.pulser.devices._device_datacls import BaseDevice
-from pulser_diff.pulser.register.base_register import BaseRegister
-from pulser_diff.pulser.sampler.samples import SequenceSamples
-from pulser_diff.pulser.sequence._seq_drawer import draw_samples
-from pulser_diff.pulser_simulation.simconfig import SimConfig
-from pulser_diff.result import DynamiqsResult
+from pulser_diff.hamiltonian import Hamiltonian
+from pulser_diff.result import TorchResult
+from pulser_diff.simconfig import SimConfig
 from pulser_diff.simresults import (
     CoherentResults,
+    NoisyResults,
     SimulationResults,
 )
-from pulser_diff.utils import SolverType
+from pulser_diff.utils import kron
 
 
 class TorchEmulator:
@@ -77,15 +64,13 @@ class TorchEmulator:
         register: BaseRegister,
         device: BaseDevice,
         sampling_rate: float = 1.0,
-        config: Optional[SimConfig] = None,
-        evaluation_times: Union[float, str, ArrayLike] = "Full",
+        config: SimConfig | None = None,
+        evaluation_times: float | str | ArrayLike = "Full",
     ) -> None:
         """Instantiates a QutipEmulator object."""
         # Initializing the samples obj
         if not isinstance(sampled_seq, SequenceSamples):
-            raise TypeError(
-                "The provided sequence has to be a valid " "SequenceSamples instance."
-            )
+            raise TypeError("The provided sequence has to be a valid " "SequenceSamples instance.")
         if sampled_seq.max_duration == 0:
             raise ValueError("SequenceSamples is empty.")
         # Check compatibility of register and device
@@ -99,8 +84,7 @@ class TorchEmulator:
         # Check compatibility of masked samples and register
         if not sampled_seq._slm_mask.targets <= set(register.qubit_ids):
             raise ValueError(
-                "The ids of qubits targeted in SLM mask"
-                " should be defined in register."
+                "The ids of qubits targeted in SLM mask should be defined in register."
             )
         samples_list = []
         for ch, ch_samples in sampled_seq.channel_samples.items():
@@ -140,11 +124,9 @@ class TorchEmulator:
         if int(self._tot_duration * sampling_rate) < 4:
             raise ValueError("`sampling_rate` is too small, less than 4 data points.")
         # Sets the config as well as builds the hamiltonian
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            noise_model: NoiseModel = (
-                config.to_noise_model() if config else SimConfig().to_noise_model()
-            )
+        noise_model: NoiseModel = (
+            config.to_noise_model() if config else SimConfig().to_noise_model()
+        )
         self._hamiltonian = Hamiltonian(
             self.samples_obj,
             self._register.qubits,
@@ -196,9 +178,7 @@ class TorchEmulator:
     @property
     def config(self) -> SimConfig:
         """The current configuration, as a SimConfig instance."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            return SimConfig.from_noise_model(self._hamiltonian.config)
+        return SimConfig.from_noise_model(self._hamiltonian.config)
 
     def set_config(self, cfg: SimConfig) -> None:
         """Sets current config to cfg and updates simulation parameters.
@@ -208,18 +188,14 @@ class TorchEmulator:
         """
         if not isinstance(cfg, SimConfig):
             raise ValueError(f"Object {cfg} is not a valid `SimConfig`.")
-        not_supported = (
-            set(cfg.noise) - cfg.supported_noises[self._hamiltonian._interaction]
-        )
+        not_supported = set(cfg.noise) - cfg.supported_noises[self._hamiltonian._interaction]
         if not_supported:
             raise NotImplementedError(
                 f"Interaction mode '{self._hamiltonian._interaction}' does not"
                 " support simulation of noise types:"
                 f"{', '.join(not_supported)}."
             )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            self._hamiltonian.set_config(cfg.to_noise_model())
+        self._hamiltonian.set_config(cfg.to_noise_model())
 
     def add_config(self, config: SimConfig) -> None:
         """Updates the current configuration with parameters of another one.
@@ -236,50 +212,30 @@ class TorchEmulator:
         if not isinstance(config, SimConfig):
             raise ValueError(f"Object {config} is not a valid `SimConfig`")
 
-        not_supported = (
-            set(config.noise) - config.supported_noises[self._hamiltonian._interaction]
-        )
+        not_supported = set(config.noise) - config.supported_noises[self._hamiltonian._interaction]
         if not_supported:
             raise NotImplementedError(
                 f"Interaction mode '{self._hamiltonian._interaction}' does not"
                 " support simulation of noise types: "
                 f"{', '.join(not_supported)}."
             )
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            noise_model = config.to_noise_model()
+        noise_model = config.to_noise_model()
         old_noise_set = set(self._hamiltonian.config.noise_types)
         new_noise_set = old_noise_set.union(noise_model.noise_types)
         diff_noise_set = new_noise_set - old_noise_set
         # Create temporary param_dict to add noise parameters:
         param_dict: dict[str, Any] = asdict(self._hamiltonian.config)
-        # Begin populating with added noise parameters:
-        param_dict["noise_types"] = tuple(new_noise_set)
-        if "SPAM" in diff_noise_set:
-            param_dict["state_prep_error"] = noise_model.state_prep_error
-            param_dict["p_false_pos"] = noise_model.p_false_pos
-            param_dict["p_false_neg"] = noise_model.p_false_neg
-        if "doppler" in diff_noise_set:
-            param_dict["temperature"] = noise_model.temperature
-        if "amplitude" in diff_noise_set:
-            param_dict["laser_waist"] = noise_model.laser_waist
-        if "dephasing" in diff_noise_set:
-            param_dict["dephasing_prob"] = noise_model.dephasing_prob
-            param_dict["dephasing_rate"] = noise_model.dephasing_rate
-        if "depolarizing" in diff_noise_set:
-            param_dict["depolarizing_prob"] = noise_model.depolarizing_prob
-            param_dict["depolarizing_rate"] = noise_model.depolarizing_rate
-        if "eff_noise" in diff_noise_set:
-            param_dict["eff_noise_opers"] = noise_model.eff_noise_opers
-            param_dict["eff_noise_rates"] = noise_model.eff_noise_rates
-            param_dict["eff_noise_probs"] = noise_model.eff_noise_probs
-        # update runs:
-        param_dict["runs"] = noise_model.runs
-        param_dict["samples_per_run"] = noise_model.samples_per_run
+        relevant_params = NoiseModel._find_relevant_params(
+            diff_noise_set,
+            noise_model.state_prep_error,
+            noise_model.amp_sigma,
+            noise_model.laser_waist,
+        )
+        for param in relevant_params:
+            param_dict[param] = getattr(noise_model, param)
         # set config with the new parameters:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            self._hamiltonian.set_config(NoiseModel(**param_dict))
+        param_dict.pop("noise_types")
+        self._hamiltonian.set_config(NoiseModel(**param_dict))
 
     def show_config(self, solver_options: bool = False) -> None:
         """Shows current configuration."""
@@ -287,16 +243,14 @@ class TorchEmulator:
 
     def reset_config(self) -> None:
         """Resets configuration to default."""
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=DeprecationWarning)
-            self._hamiltonian.set_config(SimConfig().to_noise_model())
+        self._hamiltonian.set_config(SimConfig().to_noise_model())
 
     @property
     def initial_state(self) -> Tensor:
         """The initial state of the simulation."""
         return self._initial_state
 
-    def set_initial_state(self, state: Tensor) -> None:
+    def set_initial_state(self, state: str | Tensor) -> None:
         """Sets the initial state of the simulation.
 
         Args:
@@ -309,28 +263,21 @@ class TorchEmulator:
         """
         self._initial_state: Tensor
         if isinstance(state, str) and state == "all-ground":
-            self._initial_state = dq.tensprod(
+            self._initial_state = kron(
                 *[
-                    self._hamiltonian.basis[
-                        "u" if self._hamiltonian._interaction == "XY" else "g"
-                    ]
+                    self._hamiltonian.basis["u" if self._hamiltonian._interaction == "XY" else "g"]
                     for _ in range(self._hamiltonian._size)
                 ]
-            )
+            ).to(torch.complex128)
         else:
             state = cast(Tensor, state)
             shape = state.shape[0]
             legal_shape = self._hamiltonian.dim**self._hamiltonian._size
-            legal_dims = [
-                [self._hamiltonian.dim] * self._hamiltonian._size,
-                [1] * self._hamiltonian._size,
-            ]
             if shape != legal_shape:
                 raise ValueError(
-                    "Incompatible shape of initial state."
-                    + f"Expected {legal_shape}, got {shape}."
+                    "Incompatible shape of initial state." + f"Expected {legal_shape}, got {shape}."
                 )
-            self._initial_state = state
+            self._initial_state = state.to(torch.complex128)
 
     @property
     def evaluation_times(self) -> Tensor:
@@ -351,18 +298,13 @@ class TorchEmulator:
             0,
             self._tot_duration,
             int(self._sampling_rate * (self._tot_duration + 1)),
-            dtype=int,
+            dtype=torch.int,
         )
 
         # get end of pulses timestamps
         for samples in self.samples_obj.samples_list:
-            end_ts += [
-                bisect_left(remaining_indices.numpy(), sl.tf) - 1
-                for sl in samples.slots
-            ]
-            end_ts += [
-                bisect_left(remaining_indices.numpy(), sl.tf) for sl in samples.slots
-            ]
+            end_ts += [bisect_left(remaining_indices.numpy(), sl.tf) - 1 for sl in samples.slots]
+            end_ts += [bisect_left(remaining_indices.numpy(), sl.tf) for sl in samples.slots]
         end_ts = sorted(end_ts)
 
         return end_ts
@@ -392,8 +334,7 @@ class TorchEmulator:
             else:
                 raise ValueError(
                     "Wrong evaluation time label. It should "
-                    "be `Full`, `Minimal`, an array of times or"
-                    + " a float between 0 and 1."
+                    "be `Full`, `Minimal`, an array of times or" + " a float between 0 and 1."
                 )
         elif isinstance(value, float):
             if value > 1 or value <= 0:
@@ -402,33 +343,35 @@ class TorchEmulator:
                 0,
                 len(self._hamiltonian.sampling_times) - 1,
                 int(value * len(self._hamiltonian.sampling_times)),
-                dtype=int,
+                dtype=torch.int,
             )
             # Note: if `value` is very small `eval_times` is an empty list:
             eval_times = self._hamiltonian.sampling_times[indices]
         elif isinstance(value, (list, tuple, Tensor)):
-            if torch.max(value) > self._tot_duration / 1000:
+            if torch.max(torch.as_tensor(value)) > self._tot_duration / 1000:
                 raise ValueError(
-                    "Provided evaluation-time list extends "
-                    "further than sequence duration."
+                    "Provided evaluation-time list extends " "further than sequence duration."
                 )
-            if torch.min(value) < 0:
-                raise ValueError(
-                    "Provided evaluation-time list contains " "negative values."
-                )
+            if torch.min(torch.as_tensor(value)) < 0:
+                raise ValueError("Provided evaluation-time list contains " "negative values.")
             eval_times = torch.as_tensor(value)
         else:
             raise ValueError(
                 "Wrong evaluation time label. It should "
-                "be `Full`, `Minimal`, an array of times or a "
-                + "float between 0 and 1."
+                "be `Full`, `Minimal`, an array of times or a " + "float between 0 and 1."
             )
         # Ensure 0 and final time are included:
         self._eval_times_array = (
-            torch.cat([eval_times, torch.tensor([0.0, self._tot_duration / 1000])])
+            torch.cat(
+                [
+                    eval_times,
+                    torch.tensor([0.0, self._tot_duration / 1000], dtype=eval_times.dtype),
+                ]
+            )
             .unique()
             .requires_grad_(False)
         )
+
         self._eval_times_instruction = value
 
     def build_operator(self, operations: Union[list, tuple]) -> Tensor:
@@ -479,18 +422,16 @@ class TorchEmulator:
             )
         if time < 0:
             raise ValueError(
-                f"Provided time (`time` = {time}) must be "
-                "greater than or equal to 0."
+                f"Provided time (`time` = {time}) must be " "greater than or equal to 0."
             )
-        return self._hamiltonian._hamiltonian(time / 1000)  # Creates new Qutip.Qobj
+        return self._hamiltonian._hamiltonian(time / 1000)  # Creates new Tensor
 
-    # Run Simulation Evolution using Dynamiqs
+    # Run Simulation Evolution using torch-based solvers
     def run(
         self,
         time_grad: bool = False,
         dist_grad: bool = False,
-        progress_bar: bool = False,
-        solver: SolverType = SolverType.DQ,
+        solver: SolverType = SolverType.DP5_SE,
         **options: Any,
     ) -> SimulationResults:
         """Simulates the sequence using QuTiP's solvers.
@@ -499,8 +440,6 @@ class TorchEmulator:
         Otherwise will return CoherentResults.
 
         Args:
-            progress_bar: If True, the progress bar of QuTiP's
-                solver will be shown. If None or False, no text appears.
             options: Used as arguments for qutip.Options(). If specified, will
                 override SimConfig solver_options. If no `max_step` value is
                 provided, an automatic one is calculated from the `Sequence`'s
@@ -520,128 +459,95 @@ class TorchEmulator:
                 v.requires_grad_(True).retain_grad()
                 self.dist_dict[k] = v
 
-        if "max_step" not in options:
-            pulse_durations = [
-                slot.tf - slot.ti
-                for ch_sample in self.samples_obj.samples_list
-                for slot in ch_sample.slots
-                if not (
-                    torch.all(
-                        torch.isclose(
-                            ch_sample.amp[slot.ti : slot.tf], torch.tensor(0.0)
-                        )
-                    )
-                    and torch.all(
-                        torch.isclose(
-                            ch_sample.det[slot.ti : slot.tf], torch.tensor(0.0)
+        def get_min_variation(ch_sample: ChannelSamples) -> int:
+            end_point = ch_sample.duration - 1
+            min_variations: list[int] = []
+            for sample in (
+                ch_sample.amp.as_tensor(),
+                ch_sample.det.as_tensor(),
+            ):
+                min_variations.append(
+                    int(
+                        torch.min(
+                            torch.diff(
+                                torch.nonzero(torch.diff(sample)),
+                                prepend=torch.as_tensor(-1),
+                                append=torch.as_tensor(end_point),
+                            )
                         )
                     )
                 )
-            ]
-            if pulse_durations:
-                options["max_step"] = 0.5 * min(pulse_durations) / 1000
 
-        meas_errors: Optional[Mapping[str, float]] = None
+            return min(min_variations)
 
-        if not all(
-            (noise in SUPPORTED_NOISES[self._hamiltonian._interaction])
-            for noise in self.config.noise
-        ):
-            raise NotImplementedError("Those noise types are not supported")
+        # TODO: add options
+        # if "max_step" not in options:
+        #     options["max_step"] = (
+        #         min(
+        #             [
+        #                 get_min_variation(ch_sample)
+        #                 for ch_sample in self.samples_obj.samples_list
+        #             ]
+        #         )
+        #         / 1000
+        #     )
+        # if "nsteps" not in options:
+        #     options["nsteps"] = max(
+        #         1000, self._tot_duration // options["max_step"]
+        #     )
+        # solv_ops = qutip.Options(**options)
+
+        meas_errors: Mapping[str, float] | None = None
+        if "SPAM" in self.config.noise:
+            meas_errors = {k: self.config.spam_dict[k] for k in ("epsilon", "epsilon_prime")}
+            ground_init_state = kron(
+                *[
+                    self._hamiltonian.basis["u" if self._hamiltonian._interaction == "XY" else "g"]
+                    for _ in range(self._hamiltonian._size)
+                ]
+            )
+            if self.config.eta > 0 and self.initial_state != ground_init_state:
+                raise NotImplementedError(
+                    "Can't combine state preparation errors with an initial "
+                    "state different from the ground."
+                )
 
         if (
             "dephasing" in self.config.noise
+            or "relaxation" in self.config.noise
             or "depolarizing" in self.config.noise
             or "eff_noise" in self.config.noise
         ):
-            solver = SolverType.DQ_ME
+            solver = SolverType.DP5_ME
 
-        def _run_solver(ham) -> CoherentResults:
+        def _run_solver() -> CoherentResults:
             """Returns CoherentResults: Object containing evolution results."""
-            # Decide if progress bar will be fed to QuTiP solver
-            p_bar: Optional[bool]
-            if progress_bar is True:
-                p_bar = True
-            elif (progress_bar is False) or (progress_bar is None):
-                p_bar = None
-            else:
-                raise ValueError("`progress_bar` must be a bool.")
-
-            if solver == SolverType.DQ:
-                result = dq.sesolve(
-                    H=CallableTimeTensor(  # type: ignore [abstract]
-                        ham,
-                        ham(0.0),
-                    ),
+            if solver in [SolverType.DP5_SE, SolverType.KRYLOV_SE]:
+                result = sesolve(
+                    H=self._hamiltonian._hamiltonian,
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
-                    options=dict(verbose=True if p_bar else False),
+                    solver=solver,
                 )
-            elif solver == SolverType.KRYLOV:
-                result = sesolve_krylov(
-                    H=ham,
-                    psi0=self.initial_state,
-                    tsave=self._eval_times_array,
-                    progress_bar=progress_bar,
-                )
-            elif solver == SolverType.DQ_ME:
-                if self._hamiltonian._collapse_ops == []:
+            elif solver == SolverType.DP5_ME:
+                if not self.config.noise:
                     dim = 2 ** len(self._register.qubits)
                     collapse_ops = [torch.zeros(dim, dim).to_sparse()]
                 else:
                     collapse_ops = self._hamiltonian._collapse_ops
 
-                result = dq.mesolve(
-                    H=CallableTimeTensor(
-                        ham,
-                        ham(0.0),
-                    ),
-                    jump_ops=collapse_ops,
-                    rho0=self.initial_state,
+                result = mesolve(
+                    H=self._hamiltonian._hamiltonian,
+                    psi0=self.initial_state,
+                    L=collapse_ops,
                     tsave=self._eval_times_array,
-                    options=dict(verbose=True if p_bar else False),
+                    solver=solver,
                 )
             else:
                 raise ValueError(f"Solver {solver} not available.")
 
-            return result
-
-        is_stochastic = ("doppler" in self.config.noise) or (
-            "amplitude" in self.config.noise and self.config.amp_sigma != 0
-        )
-
-        if is_stochastic:
-            result = []
-            for k in range(self.config.runs):
-                res = _run_solver(self._hamiltonian._hamiltonian)
-                self._hamiltonian._construct_hamiltonian(update=True)
-                result.append(res.states)
-
-            if solver == SolverType.DQ_ME:
-                states = (1 / self.config.runs) * sum(result)
-            else:
-                n_times = len(result[0])
-                states = []
-                for k in range(n_times):
-                    states.append(
-                        (1 / self.config.runs)
-                        * sum([x[k].matmul(x[k].mH) for x in result])
-                    )
-
             results = [
-                DynamiqsResult(
-                    tuple(self._hamiltonian._qdict),
-                    self._meas_basis,
-                    state,
-                    self._meas_basis == self._hamiltonian.basis_name,
-                )
-                for state in states
-            ]
-
-        else:  # if there is no needs for several runs
-            result = _run_solver(self._hamiltonian._hamiltonian)
-            results = [
-                DynamiqsResult(
+                TorchResult(
                     tuple(self._hamiltonian._qdict),
                     self._meas_basis,
                     state,
@@ -649,13 +555,95 @@ class TorchEmulator:
                 )
                 for state in result.states
             ]
-        return CoherentResults(
+            return CoherentResults(
+                results,
+                self._hamiltonian._size,
+                self._hamiltonian.basis_name,
+                self._eval_times_array,
+                self._meas_basis,
+                meas_errors,
+            )
+
+        # Check if noises ask for averaging over multiple runs:
+        if set(self.config.noise).issubset(
+            {
+                "dephasing",
+                "relaxation",
+                "SPAM",
+                "depolarizing",
+                "eff_noise",
+                "amplitude",
+            }
+        ) and (
+            # If amplitude is in noise, not resampling needs amp_sigma=0.
+            "amplitude" not in self.config.noise
+            or self.config.amp_sigma == 0.0
+        ):
+            # If there is "SPAM", the preparation errors must be zero
+            if "SPAM" not in self.config.noise or self.config.eta == 0:
+                return _run_solver()
+
+            else:
+                # Stores the different initial configurations and frequency
+                initial_configs = Counter(
+                    "".join(
+                        str(
+                            int(
+                                torch.rand(size=len(self._hamiltonian._qid_index)) < self.config.eta
+                            )
+                        )
+                    )
+                    for _ in range(self.config.runs)
+                ).most_common()
+                loop_runs = len(initial_configs)
+                update_ham = False
+        else:
+            loop_runs = self.config.runs
+            update_ham = True
+
+        # Will return NoisyResults
+        time_indices = range(len(self._eval_times_array))
+        total_count = np.array([Counter() for _ in time_indices])
+
+        # We run the system multiple times
+        for i in range(loop_runs):
+            if not update_ham:
+                initial_state, reps = initial_configs[i]
+                # We load the initial state manually
+                self._hamiltonian._bad_atoms = dict(
+                    zip(
+                        self._hamiltonian._qid_index,
+                        np.array(list(initial_state)).astype(bool),
+                    )
+                )
+            else:
+                reps = 1
+            # At each run, new random noise: new Hamiltonian
+            self._hamiltonian._construct_hamiltonian(update=update_ham)
+            # Get CoherentResults instance from sequence with added noise:
+            cleanres_noisyseq = _run_solver()
+            # Extract statistics at eval time:
+            total_count += np.array(
+                [
+                    cleanres_noisyseq.sample_state(t, n_samples=self.config.samples_per_run * reps)
+                    for t in self._eval_times_array
+                ]
+            )
+        n_measures = self.config.runs * self.config.samples_per_run
+        results = [
+            SampledResult(
+                tuple(self._hamiltonian._qdict),
+                self._meas_basis,
+                total_count[t],
+            )
+            for t in time_indices
+        ]
+        return NoisyResults(
             results,
             self._hamiltonian._size,
             self._hamiltonian.basis_name,
             self._eval_times_array,
-            self._meas_basis,
-            meas_errors,
+            n_measures,
         )
 
     def draw(
@@ -705,7 +693,7 @@ class TorchEmulator:
         evaluation_times: Union[float, str, ArrayLike] = "Full",
         with_modulation: bool = False,
     ) -> TorchEmulator:
-        r"""Simulation of a pulse sequence using QuTiP.
+        r"""Simulation of a pulse sequence using torch-based backend.
 
         Args:
             sequence: An instance of a Pulser Sequence that we
@@ -730,9 +718,7 @@ class TorchEmulator:
                 programmed input or the expected output.
         """
         if not isinstance(sequence, Sequence):
-            raise TypeError(
-                "The provided sequence has to be a valid " "pulser.Sequence instance."
-            )
+            raise TypeError("The provided sequence has to be a valid pulser.Sequence instance.")
         if sequence.is_parametrized() or sequence.is_register_mappable():
             raise ValueError(
                 "The provided sequence needs to be built to be simulated. Call"
@@ -751,9 +737,7 @@ class TorchEmulator:
             sampler.sample(
                 sequence,
                 modulation=with_modulation,
-                extended_duration=sequence.get_duration(
-                    include_fall_time=with_modulation
-                ),
+                extended_duration=sequence.get_duration(include_fall_time=with_modulation),
             ),
             sequence.register,
             sequence.device,

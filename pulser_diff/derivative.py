@@ -14,18 +14,11 @@ def _fix_border_vals(deriv: Tensor, border_indices: list, dt: Tensor) -> Tensor:
             else:
                 if (idx - prev_idx) != 1 or idx + 3 >= len(deriv):
                     deriv[idx - 1] = (
-                        deriv[idx - 3]
-                        + ((deriv[idx - 2] - deriv[idx - 3]) / dt) * 2 * dt
+                        deriv[idx - 3] + ((deriv[idx - 2] - deriv[idx - 3]) / dt) * 2 * dt
                     )
-                    deriv[idx] = (
-                        deriv[idx - 2]
-                        + ((deriv[idx - 1] - deriv[idx - 2]) / dt) * 2 * dt
-                    )
+                    deriv[idx] = deriv[idx - 2] + ((deriv[idx - 1] - deriv[idx - 2]) / dt) * 2 * dt
                 else:
-                    deriv[idx] = (
-                        deriv[idx + 2]
-                        - ((deriv[idx + 2] - deriv[idx + 1]) / dt) * 2 * dt
-                    )
+                    deriv[idx] = deriv[idx + 2] - ((deriv[idx + 2] - deriv[idx + 1]) / dt) * 2 * dt
                 prev_idx = idx
     return deriv
 
@@ -57,8 +50,8 @@ def deriv_param(
     f: Tensor,
     x: list[Tensor],
     times: Tensor | None = None,
-    t: int | float | None = None,
-) -> Tensor:
+    t: int | float | Tensor | None = None,
+) -> Tensor | tuple[Tensor, ...]:
     """Calculate derivative with respect to pulse parameter.
 
     Args:
@@ -71,7 +64,7 @@ def deriv_param(
     Returns:
         torch.Tensor: derivative df/dx
     """
-    v = torch.zeros(len(f))
+    v = torch.zeros(len(f), dtype=torch.float64)
     if times is None:
         # t is selected as final time moment
         v[-1] = 1.0

@@ -3,22 +3,23 @@ from __future__ import annotations
 import pytest
 import torch
 from metrics import (
-    ATOL_EXPV_DQ,
+    ATOL_EXPV_DP,
     ATOL_EXPV_KRYLOV,
     ATOL_OPTIM,
     ATOL_WF,
 )
-from torch import Tensor
-
-from pulser_diff.model import QuantumModel
-from pulser_diff.pulser import Pulse, Sequence
-from pulser_diff.pulser.waveforms import (
+from pulser import Pulse, Sequence
+from pulser.waveforms import (
     BlackmanWaveform,
     ConstantWaveform,
     KaiserWaveform,
     RampWaveform,
 )
-from pulser_diff.pulser_simulation import QutipEmulator
+from pulser_simulation import QutipEmulator
+from pyqtorch.utils import SolverType
+from torch import Tensor
+
+from pulser_diff.model import QuantumModel
 
 
 def add_parameterized_pulses(
@@ -46,9 +47,9 @@ def add_parameterized_pulses(
     return seq
 
 
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE])
 def test_model_wavefunction(
-    solver: str,
+    solver: SolverType,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -76,7 +77,7 @@ def test_model_wavefunction(
     states_torch = model()[1]
 
     # simulate with qutip
-    seq_built = seq.build(**trainable_params)
+    seq_built = seq.build(qubits=None, **trainable_params)
     sim_qt = QutipEmulator.from_sequence(seq_built, sampling_rate=1.0)
     results_qt = sim_qt.run()
 
@@ -88,9 +89,9 @@ def test_model_wavefunction(
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE])
 def test_model_expectation(
-    solver: str,
+    solver: SolverType,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -120,19 +121,19 @@ def test_model_expectation(
     exp_val_torch = model.expectation(total_magnetization_torch)[1].real
 
     # simulate with qutip
-    seq_built = seq.build(**trainable_params)
+    seq_built = seq.build(qubits=None, **trainable_params)
     sim_qt = QutipEmulator.from_sequence(seq_built, sampling_rate=1.0)
     results_qt = sim_qt.run()
-    exp_val_qt = results_qt.expect([total_magnetization_qt])[0].real
+    exp_val_qt = torch.as_tensor(results_qt.expect([total_magnetization_qt])[0]).real
 
-    atol = ATOL_EXPV_DQ if solver == "dq" else ATOL_EXPV_KRYLOV
-    assert torch.allclose(exp_val_torch, torch.as_tensor(exp_val_qt), atol=atol)
+    atol = ATOL_EXPV_DP if solver == SolverType.DP5_SE else ATOL_EXPV_KRYLOV
+    assert torch.allclose(exp_val_torch, exp_val_qt, atol=atol)
 
 
-# @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.flaky(max_runs=5)
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE])
 def test_model_training(
-    solver: str,
+    solver: SolverType,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -164,7 +165,7 @@ def test_model_training(
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-1)
 
     epochs = 50
-    target_value = torch.tensor(-0.5)
+    target_value = torch.tensor(-0.5, dtype=torch.float64)
     for t in range(epochs):
         # calculate current function value and loss
         _, exp_val = model.expectation(total_magnetization_torch)
