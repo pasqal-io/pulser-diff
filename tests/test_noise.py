@@ -1,20 +1,27 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import pytest
 import torch
 from metrics import ATOL_NOISE, RTOL_NOISE
-
-import pulser_diff.dq as dq
-from pulser_diff import TorchEmulator
-from pulser_diff.pulser import Pulse, Register, Sequence
-from pulser_diff.pulser.devices import MockDevice
-from pulser_diff.pulser.waveforms import (
+from pulser import Pulse, Register, Sequence
+from pulser.devices import MockDevice
+from pulser.waveforms import (
     BlackmanWaveform,
     ConstantWaveform,
     KaiserWaveform,
+    Waveform,
 )
-from pulser_diff.pulser_simulation import QutipEmulator, SimConfig
-from pulser_diff.utils import expect, total_magnetization, trace, vn_entropy
+from pulser_simulation import QutipEmulator
+
+# from pulser_simulation import SimConfig as SC
+from pyqtorch.utils import SolverType
+from torch import Tensor
+
+from pulser_diff import TorchEmulator
+from pulser_diff.simconfig import SimConfig
+from pulser_diff.utils import XMAT, expect, total_magnetization, trace, vn_entropy
 
 
 @pytest.mark.parametrize(
@@ -28,25 +35,29 @@ from pulser_diff.utils import expect, total_magnetization, trace, vn_entropy
 @pytest.mark.parametrize(
     "cfg",
     [
-        SimConfig(noise="dephasing", dephasing_rate=torch.tensor([1.0])),
-        SimConfig(noise="depolarizing", depolarizing_rate=torch.tensor([1.0])),
+        SimConfig(noise="dephasing", dephasing_rate=1.0),
+        SimConfig(noise="depolarizing", depolarizing_rate=1.0),
         SimConfig(
             noise="eff_noise",
-            eff_noise_opers=[dq.sigmax()],
-            eff_noise_rates=[torch.tensor([1.0])],
+            eff_noise_opers=[XMAT],
+            eff_noise_rates=[1.0],
         ),
     ],
 )
-def test_linblad_noise(dq_sim, qt_sim, cfg, amp_wf, det_wf):
-    dq_results = dq_sim(amp_wf, det_wf, cfg).run(solver="dq_me")
-    qt_results = qt_sim(amp_wf, det_wf, cfg).run()
+def test_linblad_noise(
+    torch_sim: Callable,
+    qt_sim: Callable,
+    cfg: SimConfig,
+    amp_wf: Waveform,
+    det_wf: Waveform,
+) -> None:
+    torch_results = torch_sim(amp_wf, det_wf, cfg).run(solver=SolverType.DP5_ME)
+    qt_results = qt_sim(amp_wf, det_wf, cfg.to_pulser()).run()
 
     for idx, qt_state in enumerate(qt_results.states):
-        dq_state_tensor = dq_results.states[idx]
+        torch_state_tensor = torch_results.states[idx]
         qt_state_tensor = torch.tensor(qt_state.data.toarray())
-        assert torch.allclose(
-            dq_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE
-        )
+        assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 
 
 @pytest.mark.parametrize(
@@ -56,22 +67,22 @@ def test_linblad_noise(dq_sim, qt_sim, cfg, amp_wf, det_wf):
         (BlackmanWaveform(800, 2 * torch.pi), ConstantWaveform(800, 2.5)),
     ],
 )
-def test_laser_waist(dq_sim, qt_sim, amp_wf, det_wf):
+def test_laser_waist(
+    torch_sim: Callable, qt_sim: Callable, amp_wf: Waveform, det_wf: Waveform
+) -> None:
     cfg = SimConfig(
         noise="amplitude",
-        amp_sigma=torch.tensor([0.0]),
-        laser_waist=torch.tensor([100.0]),
+        amp_sigma=0.0,
+        laser_waist=100.0,
     )
 
-    dq_results = dq_sim(amp_wf, det_wf, cfg).run(solver="dq")
+    torch_results = torch_sim(amp_wf, det_wf, cfg).run(solver=SolverType.DP5_SE)
     qt_results = qt_sim(amp_wf, det_wf, cfg).run()
 
     for idx, qt_state in enumerate(qt_results.states):
-        dq_state_tensor = dq_results.states[idx]
+        torch_state_tensor = torch_results.states[idx]
         qt_state_tensor = torch.tensor(qt_state.data.toarray())
-        assert torch.allclose(
-            dq_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE
-        )
+        assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 
 
 @pytest.mark.flaky(max_runs=10)
@@ -79,50 +90,48 @@ def test_laser_waist(dq_sim, qt_sim, amp_wf, det_wf):
     "cfg",
     [SimConfig(noise="doppler", runs=100), SimConfig(noise="amplitude", runs=100)],
 )
-def test_stochastic_noise(dq_sim, qt_sim, cfg):
+def test_stochastic_noise(torch_sim: Callable, qt_sim: Callable, cfg: SimConfig) -> None:
     amp_wf, det_wf = ConstantWaveform(800, 5.0), ConstantWaveform(800, 0)
 
-    dq_results = dq_sim(amp_wf, det_wf, cfg).run(solver="dq")
     qt_results = qt_sim(amp_wf, det_wf, cfg).run()
+    torch_results = torch_sim(amp_wf, det_wf, cfg).run(solver=SolverType.DP5_SE)
 
-    assert dq_results.states[0].shape == (4, 4)
+    assert torch_results.states[0].shape == (4, 4)
 
     obs = total_magnetization(2)
 
-    assert dq_results.expect([obs])[0].real.size() == torch.Size([3])
-    assert dq_results._basis_name == "ground-rydberg"
-    assert dq_results._size == 2
-    assert len(dq_results._sim_times) == 3
+    assert torch_results.expect([obs])[0].real.size() == torch.Size([3])
+    assert torch_results._basis_name == "ground-rydberg"
+    assert torch_results._size == 2
+    assert len(torch_results._sim_times) == 3
 
     assert torch.allclose(
-        dq_results.states[-1].diag().real,
+        torch_results.states[-1].diag().real,
         torch.tensor(qt_results.states[-1].diag()),
         0.1,
         0.1,
     )
 
-    for state in dq_results.states:
-        assert torch.allclose(trace(state), torch.tensor([1.0 + 0j]))
+    for state in torch_results.states:
+        assert torch.allclose(trace(state), torch.tensor([1.0 + 0j], dtype=torch.complex128))
 
-    ent = vn_entropy(dq_results.states[-1])
+    ent = vn_entropy(torch_results.states[-1])
     assert ent > 0
 
 
-def test_expect_sparse_dm(hermitian):
+def test_expect_sparse_dm(hermitian: Tensor) -> None:
     density_matrix = hermitian / trace(hermitian)
     sparse_density_matrix = density_matrix.to_sparse()
     obs = total_magnetization(4)
-    assert torch.allclose(
-        expect(obs, density_matrix), expect(obs, sparse_density_matrix)
-    )
+    assert torch.allclose(expect(obs, density_matrix), expect(obs, sparse_density_matrix))
 
 
-def test_trace(hermitian):
+def test_trace(hermitian: Tensor) -> None:
     sparse_H = hermitian.to_sparse()
     assert torch.allclose(hermitian.trace(), trace(sparse_H))
 
 
-def test_1qbit():
+def test_1qbit() -> None:
     reg = Register({"q0": torch.tensor([0.0, 0.0])})
     seq = Sequence(reg, MockDevice)
     seq.declare_channel("rydberg_global", "rydberg_global")

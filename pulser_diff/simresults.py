@@ -24,12 +24,13 @@ from typing import Mapping, Optional, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
+import qutip
 import torch
+from numpy.typing import ArrayLike
+from pulser.result import Results, ResultType, SampledResult
 from torch import Tensor
 
-import pulser_diff.dq as dq
-from pulser_diff.pulser.result import Results, ResultType, SampledResult
-from pulser_diff.result import DynamiqsResult
+from pulser_diff.result import TorchResult
 from pulser_diff.utils import expect
 
 
@@ -57,15 +58,13 @@ class SimulationResults(ABC, Results[ResultType]):
         self._dim = 3 if basis_name == "all" else 2
         self._size = size
         if basis_name not in {"ground-rydberg", "digital", "all", "XY"}:
-            raise ValueError(
-                "`basis_name` must be 'ground-rydberg', 'digital', 'all' or " "'XY'."
-            )
+            raise ValueError("`basis_name` must be 'ground-rydberg', 'digital', 'all' or 'XY'.")
         self._basis_name = basis_name
         self._sim_times = sim_times
 
     @property
     @abstractmethod
-    def states(self) -> list[Tensor]:
+    def states(self) -> Tensor:
         """Lists states of the system at simulation times."""
         pass
 
@@ -95,7 +94,6 @@ class SimulationResults(ABC, Results[ResultType]):
         qobj_list = []
         exp_vals = []
         dim = self._dim if not self._use_pseudo_dens else 2
-        legal_dims = [[dim] * self._size] * 2
         legal_shape = (dim**self._size, dim**self._size)
         for obs in obs_list:
             if not (isinstance(obs, Tensor)):
@@ -111,9 +109,18 @@ class SimulationResults(ABC, Results[ResultType]):
                 )
             qobj_list.append(obs)
             if self._use_pseudo_dens:
-                if not (obs.diag().sum() == obs.sum()):
+                if obs.is_sparse:
+                    is_diagonal = torch.equal(obs.indices()[0], obs.indices()[1])
+                else:
+                    is_diagonal = cast(bool, obs.diag().sum() == obs.sum())
+                if not is_diagonal:
                     raise ValueError(f"Observable {obs!r} is non-diagonal.")
-                states = [self._calc_pseudo_density(ind) for ind in range(len(self))]
+                states = torch.stack(
+                    [
+                        torch.as_tensor(self._calc_pseudo_density(ind).full())
+                        for ind in range(len(self))
+                    ]
+                )
             else:
                 states = self.states
 
@@ -121,9 +128,7 @@ class SimulationResults(ABC, Results[ResultType]):
 
         return cast(list, exp_vals)
 
-    def sample_state(
-        self, t: float, n_samples: int = 1000, t_tol: float = 1.0e-3
-    ) -> Counter:
+    def sample_state(self, t: float, n_samples: int = 1000, t_tol: float = 1.0e-3) -> Counter:
         """Returns the result of multiple measurements at time t.
 
         Args:
@@ -137,7 +142,7 @@ class SimulationResults(ABC, Results[ResultType]):
             measured quantum states at time t.
         """
         t_index = self._get_index_from_time(t, t_tol)
-        return self[t_index].get_samples(n_samples)  # type: ignore [no-any-return]
+        return self[t_index].get_samples(n_samples)
 
     def sample_final_state(self, N_samples: int = 1000) -> Counter:
         """Returns the result of multiple measurements of the final state.
@@ -149,7 +154,7 @@ class SimulationResults(ABC, Results[ResultType]):
             Sample distribution of bitstrings corresponding to
             measured quantum states at the end of the simulation.
         """
-        return self.sample_state(self._sim_times[-1], N_samples)
+        return self.sample_state(float(self._sim_times[-1]), N_samples)
 
     def plot(self, op: Tensor, fmt: str = "", label: str = "") -> None:
         """Plots the expectation value of a given operator op.
@@ -180,7 +185,7 @@ class SimulationResults(ABC, Results[ResultType]):
             )
 
     @lru_cache(maxsize=None)
-    def _calc_pseudo_density(self, t_index: int) -> Tensor:
+    def _calc_pseudo_density(self, t_index: int) -> qutip.Qobj:
         """Calculates the pseudo-density matrix at a given time.
 
         The pseudo-density matrix is the diagonal matrix calculated from the
@@ -194,17 +199,17 @@ class SimulationResults(ABC, Results[ResultType]):
             The pseudo-density matrix as a Qobj.
         """
 
-        def _proj_from_bitstring(bitstring: str) -> Tensor:
-            proj = dq.tensprod(*[self._meas_projector(int(i)) for i in bitstring])
+        def _proj_from_bitstring(bitstring: str) -> qutip.Qobj:
+            proj = qutip.tensor([self._meas_projector(int(i)) for i in bitstring])
             return proj
 
         w = self[t_index]._weights()
         return sum(
             w[i] * _proj_from_bitstring(np.binary_repr(i, width=self._size))
-            for i in torch.nonzero(w)[0]
+            for i in np.nonzero(w)[0]
         )
 
-    def _meas_projector(self, state_n: int) -> Tensor:
+    def _meas_projector(self, state_n: int) -> qutip.Qobj:
         """Gets the post measurement projector.
 
         Args:
@@ -212,9 +217,9 @@ class SimulationResults(ABC, Results[ResultType]):
         """
         if self._basis_name == "ground-rydberg":
             # 0 = |g>; 1 = |r>
-            return dq.basis(2, 1 - state_n).proj()
+            return qutip.basis(2, 1 - state_n).proj()
 
-        return dq.basis(2, state_n).proj()
+        return qutip.basis(2, state_n).proj()
 
 
 class NoisyResults(SimulationResults):
@@ -267,9 +272,9 @@ class NoisyResults(SimulationResults):
         self._results = tuple(run_output)
 
     @property
-    def states(self) -> list[Tensor]:
+    def states(self) -> Tensor:
         """Measured states as a list of diagonal qutip.Qobj."""
-        return [self.get_state(t) for t in self._sim_times]
+        return torch.stack([self.get_state(t) for t in self._sim_times])
 
     @property
     def results(self) -> list[Counter]:
@@ -292,7 +297,7 @@ class NoisyResults(SimulationResults):
             States probability distribution as a diagonal density matrix.
         """
         t_index = self._get_index_from_time(t, t_tol)
-        return self._calc_pseudo_density(t_index)
+        return torch.as_tensor(self._calc_pseudo_density(t_index).full())
 
     def get_final_state(self) -> Tensor:
         """Get the final state of the simulation as a diagonal density matrix.
@@ -304,7 +309,7 @@ class NoisyResults(SimulationResults):
         Returns:
             States probability distribution as a density matrix.
         """
-        return self.get_state(self._sim_times[-1])
+        return self.get_state(float(self._sim_times[-1]))
 
     def plot(
         self,
@@ -325,25 +330,18 @@ class NoisyResults(SimulationResults):
             error_bars: Choose to display error bars.
         """
 
-        raise NotImplementedError("not yet implemented with torch")
+        def get_error_bars() -> tuple[ArrayLike, ArrayLike]:
+            moy = self.expect([op])[0]
+            standard_dev = (torch.sqrt(qutip.variance(op, self.states) / self.n_measures),)
+            return moy, standard_dev
 
-        # def get_error_bars() -> Tuple[ArrayLike, ArrayLike]:
-        #     moy = self.expect([op])[0]
-        #     standard_dev = cast(
-        #         Tensor,
-        #         torch.sqrt(qutip.variance(op, self.states) / self.n_measures),
-        #     )
-        #     return moy, standard_dev
-
-        # if error_bars:
-        #     moy, st = get_error_bars()
-        #     plt.errorbar(
-        #         self._sim_times, moy, st, fmt=fmt, lw=1, capsize=3, label=label
-        #     )
-        #     plt.xlabel("Time (µs)")
-        #     plt.ylabel("Expectation value")
-        # else:
-        #     super().plot(op, fmt, label)
+        if error_bars:
+            moy, st = get_error_bars()
+            plt.errorbar(self._sim_times, moy, st, fmt=fmt, lw=1, capsize=3, label=label)
+            plt.xlabel("Time (µs)")
+            plt.ylabel("Expectation value")
+        else:
+            super().plot(op, fmt, label)
 
 
 class CoherentResults(SimulationResults):
@@ -355,7 +353,7 @@ class CoherentResults(SimulationResults):
 
     def __init__(
         self,
-        run_output: typing.Sequence[DynamiqsResult],
+        run_output: typing.Sequence[TorchResult],
         size: int,
         basis_name: str,
         sim_times: Tensor,
@@ -385,9 +383,7 @@ class CoherentResults(SimulationResults):
                 raise ValueError("`meas_basis` must be 'ground-rydberg' or 'digital'.")
         else:
             if meas_basis != self._basis_name:
-                raise ValueError(
-                    "`meas_basis` and `basis_name` must have the same value."
-                )
+                raise ValueError("`meas_basis` and `basis_name` must have the same value.")
         self._meas_basis = meas_basis
         self._results = tuple(run_output)
         if meas_errors is not None:
@@ -439,8 +435,8 @@ class CoherentResults(SimulationResults):
                 states with significant occupation probabilites.
         """
         t_index = self._get_index_from_time(t, t_tol)
-        return self[t_index].get_state(
-            reduce_to_basis, ignore_global_phase, tol, normalize
+        return cast(
+            Tensor, self[t_index].get_state(reduce_to_basis, ignore_global_phase, tol, normalize)
         )
 
     def get_final_state(
@@ -473,7 +469,7 @@ class CoherentResults(SimulationResults):
             significant occupation probabilites.
         """
         return self.get_state(
-            self._sim_times[-1],
+            float(self._sim_times[-1]),
             reduce_to_basis,
             ignore_global_phase,
             tol,
@@ -483,24 +479,22 @@ class CoherentResults(SimulationResults):
     def _meas_projector(self, state_n: int) -> Tensor:
         if self._meas_errors:
             err_param = (
-                self._meas_errors["epsilon"]
-                if state_n == 0
-                else self._meas_errors["epsilon_prime"]
+                self._meas_errors["epsilon"] if state_n == 0 else self._meas_errors["epsilon_prime"]
             )
             # 'good' is the position of the state that measures to state_n
             # Matches for the digital basis and XY, is inverted for
             # ground-rydberg
             good = 1 - state_n if self._basis_name == "ground-rydberg" else state_n
-            return (
-                dq.basis(2, good).proj() * (1 - err_param)
-                + dq.basis(2, 1 - good).proj() * err_param
+            proj = (
+                qutip.basis(2, good).proj() * (1 - err_param)
+                + qutip.basis(2, 1 - good).proj() * err_param
             )
+            return torch.as_tensor(cast(qutip.Qobj, proj).full())
         # Returns normal projectors in the absence of measurement errors
-        return super()._meas_projector(state_n)
+        proj = super()._meas_projector(state_n)
+        return torch.as_tensor(cast(qutip.Qobj, proj).full())
 
-    def sample_state(
-        self, t: float, n_samples: int = 1000, t_tol: float = 1.0e-3
-    ) -> Counter:
+    def sample_state(self, t: float, n_samples: int = 1000, t_tol: float = 1.0e-3) -> Counter:
         """Returns the result of multiple measurements at time t.
 
         Args:
@@ -515,8 +509,7 @@ class CoherentResults(SimulationResults):
         """
         sampled_state = super().sample_state(t, n_samples, t_tol)
         if self._meas_errors is None or (
-            self._meas_errors["epsilon"] == 0.0
-            and self._meas_errors["epsilon_prime"] == 0
+            self._meas_errors["epsilon"] == 0.0 and self._meas_errors["epsilon_prime"] == 0
         ):
             return sampled_state
 
@@ -526,22 +519,22 @@ class CoherentResults(SimulationResults):
         n_detects_list = list(sampled_state.values())
 
         # Convert shots to a 2D array
-        shot_arr = torch.tensor([list(shot) for shot in shots], dtype=int)
+        shot_arr = torch.tensor([list(shot) for shot in shots], dtype=torch.int)
         # Compute flip probabilities
         flip_probs = torch.where(shot_arr == 1, eps_p, eps)
         # Repeat flip_probs based on n_detects_list
-        flip_probs_repeated = torch.repeat(
-            flip_probs, n_detects_list, axis=0
+        flip_probs_repeated = torch.repeat_interleave(
+            flip_probs, torch.as_tensor(n_detects_list), dim=0
         )  # TODO: fix repeat
         # Generate random matrix of shape (sum(n_detects_list), len(shot))
-        random_matrix = torch.rand(size=(torch.sum(n_detects_list), len(shot_arr[0])))
+        random_matrix = torch.rand(size=(sum(n_detects_list), len(shot_arr[0])))
         # Compare random matrix with flip probabilities
         flips = random_matrix < flip_probs_repeated
         # Perform XOR between original array and flips
-        new_shots = shot_arr.repeat(n_detects_list, axis=0) ^ flips
+        new_shots = (
+            torch.repeat_interleave(shot_arr, torch.as_tensor(n_detects_list), dim=0) ^ flips
+        )
         # Count all the new_shots
         # We are not converting to str before because tuple indexing is faster
         detected_sample_dict: Counter = Counter(map(tuple, new_shots))
-        return Counter(
-            {"".join(map(str, k)): v for k, v in detected_sample_dict.items()}
-        )
+        return Counter({"".join(map(str, k)): v for k, v in detected_sample_dict.items()})

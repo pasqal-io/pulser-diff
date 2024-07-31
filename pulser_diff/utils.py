@@ -1,18 +1,23 @@
 from __future__ import annotations
 
-from enum import Enum
-from functools import lru_cache
+from functools import lru_cache, reduce
+from math import prod
 
 import torch
 from torch import Tensor, log2
 from torch.linalg import eigvalsh
 
-import pulser_diff.dq as dq
+IMAT = torch.eye(2)
+XMAT = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=torch.complex128)
+YMAT = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=torch.complex128)
+ZMAT = torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=torch.complex128)
 
 
 def kron(*args: Tensor) -> Tensor:
     if not all([t.is_sparse for t in args]):
-        raise ValueError("All arguments must be sparse tensors")
+        # converting to dense tensors and calculating Kronecker product
+        args = tuple([t.to_dense() if t.is_sparse else t for t in args])
+        return reduce(torch.kron, args)
 
     mat1: Tensor = args[0]
     if len(args) == 1:
@@ -36,13 +41,9 @@ def kron(*args: Tensor) -> Tensor:
         new_vals = val * mat2.values()
         new_values.append(new_vals)
 
-    # rearange indices and values tensors
-    new_indices = torch.vstack(new_indices).T
-    new_values = torch.hstack(new_values)
-
     # create resulting sparse tensor
     mat_prod = torch.sparse_coo_tensor(
-        new_indices, new_values, tuple(new_size)
+        torch.vstack(new_indices).T, torch.hstack(new_values), tuple(new_size)
     ).coalesce()
     return mat_prod
 
@@ -50,7 +51,7 @@ def kron(*args: Tensor) -> Tensor:
 @lru_cache
 def total_magnetization(n_qubits: int) -> Tensor:
     zero_sparse = torch.sparse_coo_tensor(
-        [[0], [0]],
+        torch.as_tensor([[0], [0]]),
         [0],
         (2**n_qubits, 2**n_qubits),
         dtype=torch.complex128,
@@ -59,45 +60,42 @@ def total_magnetization(n_qubits: int) -> Tensor:
     # create sparse total magnetization observable
     obs = []
     for i in range(n_qubits):
-        tprod = [dq.eye(2).to_sparse() for _ in range(n_qubits)]
-        tprod[i] = dq.sigmaz().to_sparse()
+        tprod = [IMAT.to_sparse() for _ in range(n_qubits)]
+        tprod[i] = ZMAT.to_sparse()
         obs.append(kron(*tprod))
-    obs = sum(obs, start=zero_sparse)
-    return obs
+    return sum(obs, start=zero_sparse)
 
 
-def expect(obs: Tensor, state: Tensor) -> Tensor:
+def expect(obs: Tensor, states: Tensor) -> Tensor:
     if obs.is_sparse:
-        if dq.isket(state):
-            state = state.squeeze(-1)
-            exp_val = (
-                torch.matmul(state.conj(), torch.matmul(obs, state.T)).to_dense().diag()
-            )
-        elif dq.isdm(state):
-            if len(state.size()) == 3:  # if there is a batch of tensors
-                exp_val = torch.stack(
-                    [trace(torch.matmul(obs, state_i)) for state_i in state]
-                )
-            elif len(state.size()) == 2:  # if there is only one state
-                exp_val = trace(torch.matmul(obs, state))
+        if states.size(-1) == 1:
+            states = states.squeeze(-1)
+            exp_val = torch.matmul(states.conj(), torch.matmul(obs, states.T)).to_dense().diag()
+        elif states.size(-1) == states.size(-2):
+            exp_val = trace(torch.matmul(obs, states))
     else:
-        exp_val = dq.expect(obs, state)
+        if states.size(-1) == 1:
+            exp_val = torch.einsum("...ij,jk,...kl->...", states.mH, obs, states)  # <x|O|x>
+        elif states.size(0) == 1:
+            exp_val = torch.einsum("...ij,jk,...kl->...", states, obs, states.mH)
+        elif states.size(-1) == states.size(-2):
+            exp_val = torch.einsum("ij,...ji->...", obs, states)  # tr(Ox)
 
     return exp_val
 
 
 def trace(mat: Tensor) -> Tensor:
     """calculate de trace of a 2D sparse tensor"""
-    n_qbit = int(torch.log2(torch.tensor([mat.shape[0]])))
-    tensprod_list = [dq.eye(2).to_sparse() for n in range(n_qbit)]
+    n_qbit = int(torch.log2(torch.tensor([mat.shape[-1]])))
+    tensprod_list = [IMAT.to_sparse() for n in range(n_qbit)]
     sparse_identity = kron(*tensprod_list)
-    return (mat * sparse_identity).sum()
+    return (mat * sparse_identity).sum(dim=(-2, -1)).to_dense()
 
 
 def vn_entropy(rho: Tensor) -> Tensor:
     """calculate the Von Neumann entropy of a density matrix"""
     ev = eigvalsh(rho)
-    vne = 0
+    vne = torch.tensor(0.0)
     for k in range(rho.shape[0]):
         if ev[k] > 0:
             vne += -ev[k] * log2(ev[k])
@@ -105,23 +103,31 @@ def vn_entropy(rho: Tensor) -> Tensor:
     return vne
 
 
-class StrEnum(str, Enum):
-    def __str__(self) -> str:
-        """Used when dumping enum fields in a schema."""
-        ret: str = self.value
-        return ret
+def basis_state(dim: int | tuple[int, ...], number: int | tuple[int, ...]) -> Tensor:
+    r"""Returns the ket of a Fock state or the ket of a tensor product of Fock states.
 
-    @classmethod
-    def list(cls) -> list[str]:
-        return list(map(lambda c: c.value, cls))
+    Args:
+        dim _(int or tuple of ints)_: Dimension of the Hilbert space of each mode.
+        number _(int or tuple of ints)_: Fock state number of each mode.
+        dtype: Complex data type of the returned tensor.
+        device: Device of the returned tensor.
 
+    Returns:
+        _(n, 1)_ Ket of the Fock state or tensor product of Fock states.
+    """
+    # convert integer inputs to tuples by default, and check dimensions match
+    dim = (dim,) if isinstance(dim, int) else dim
+    number = (number,) if isinstance(number, int) else number
+    if len(dim) != len(number):
+        raise ValueError(
+            "Arguments `number` must have the same length as `dim` of length"
+            f" {len(dim)}, but has length {len(number)}."
+        )
 
-class SolverType(StrEnum):
-    DQ = "dq"
-    """Uses dynamiqs solver"""
-
-    DQ_ME = "dq_me"
-    """Uses dynamiqs master equation solver"""
-
-    KRYLOV = "krylov"
-    """Uses the krylov solver"""
+    # compute the required basis state
+    n = 0
+    for d, s in zip(dim, number):
+        n = d * n + s
+    ket = torch.zeros(prod(dim), 1)
+    ket[n] = 1.0
+    return ket

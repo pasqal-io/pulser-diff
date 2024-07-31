@@ -3,27 +3,29 @@ from __future__ import annotations
 import pytest
 import torch
 from metrics import (
+    ATOL_DERIV_COORD,
     ATOL_DERIV_PARAM,
     ATOL_DERIV_TIME,
-    ATOL_EXPV_DQ,
+    ATOL_EXPV_DP,
     ATOL_EXPV_KRYLOV,
     ATOL_WF,
     EPS_PARAM,
 )
-from scipy import interpolate
-from torch import Tensor
-
-from pulser_diff import TorchEmulator
-from pulser_diff.derivative import deriv_param, deriv_time
-from pulser_diff.pulser import Pulse, Register, Sequence
-from pulser_diff.pulser.devices import MockDevice
-from pulser_diff.pulser.waveforms import (
+from pulser import Pulse, Register, Sequence
+from pulser.devices import MockDevice
+from pulser.waveforms import (
     BlackmanWaveform,
     ConstantWaveform,
     KaiserWaveform,
     RampWaveform,
 )
-from pulser_diff.pulser_simulation import QutipEmulator
+from pulser_simulation import QutipEmulator
+from pyqtorch.utils import SolverType
+from scipy import interpolate
+from torch import Tensor
+
+from pulser_diff import TorchEmulator
+from pulser_diff.derivative import deriv_param, deriv_time
 
 
 def add_pulses(
@@ -49,9 +51,9 @@ def add_pulses(
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE])
 def test_wavefunction(
-    solver: str,
+    solver: SolverType,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -87,9 +89,9 @@ def test_wavefunction(
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov"])
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE])
 def test_expectation(
-    solver: str,
+    solver: SolverType,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -119,16 +121,16 @@ def test_expectation(
     # simulate with qutip
     sim_qt = QutipEmulator.from_sequence(seq, sampling_rate=1.0)
     results_qt = sim_qt.run()
-    exp_val_qt = results_qt.expect([total_magnetization_qt])[0].real
+    exp_val_qt = torch.as_tensor(results_qt.expect([total_magnetization_qt])[0]).real
 
-    atol = ATOL_EXPV_DQ if solver == "dq" else ATOL_EXPV_KRYLOV
-    assert torch.allclose(exp_val_torch, torch.as_tensor(exp_val_qt), atol=atol)
+    atol = ATOL_EXPV_DP if solver == SolverType.DP5_SE else ATOL_EXPV_KRYLOV
+    assert torch.allclose(exp_val_torch, exp_val_qt, atol=atol)
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov", "dq_me"])
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE, SolverType.DP5_ME])
 def test_time_derivative(
-    solver: str,
+    solver: SolverType,
     seq: Sequence,
     duration: int,
     const_val: Tensor,
@@ -157,9 +159,8 @@ def test_time_derivative(
     # calculate derivative with torch autograd
     eval_times = sim.evaluation_times
     pulse_endtimes = sim.endtimes
-    dfdt_autograd = deriv_time(
-        f=exp_val, times=eval_times, pulse_endtimes=pulse_endtimes
-    )
+
+    dfdt_autograd = deriv_time(f=exp_val, times=eval_times, pulse_endtimes=pulse_endtimes)
 
     # calculate exact derivative with respect to time
     x = eval_times.detach().numpy()
@@ -167,15 +168,13 @@ def test_time_derivative(
     interp_fx = interpolate.UnivariateSpline(x, y, k=5, s=0)
     dfdt_exact = interp_fx.derivative()(x)
 
-    assert (
-        torch.abs(dfdt_autograd - torch.as_tensor(dfdt_exact)).mean() < ATOL_DERIV_TIME
-    )
+    assert torch.abs(dfdt_autograd - torch.as_tensor(dfdt_exact)).mean() < ATOL_DERIV_TIME
 
 
 @pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov", "dq_me"])
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE, SolverType.DP5_ME])
 def test_pulse_param_derivative(
-    solver: str,
+    solver: SolverType,
     reg: Register,
     duration: int,
     const_val: Tensor,
@@ -225,13 +224,13 @@ def test_pulse_param_derivative(
         kaiser_area,
     ]
     exp_vals_auto, eval_times = run_sequence(*diff_params)
-    for i, param in enumerate(diff_params):
-        # autograd
-        grad_auto = deriv_param(
-            f=exp_vals_auto, x=param, times=eval_times, t=1000 * eval_times[-1]
-        )[0]
+    # autograd
+    grad_auto = deriv_param(
+        f=exp_vals_auto, x=diff_params, times=eval_times, t=1000 * eval_times[-1]
+    )
 
-        # finite difference
+    # finite difference
+    for i in range(len(diff_params)):
         exp_vals = torch.tensor([0.0])
         for p in [1.0, -1.0]:
             diff_params_new = diff_params.copy()
@@ -240,13 +239,13 @@ def test_pulse_param_derivative(
             exp_vals += p * ev[-1]
         grad_fd = exp_vals / (2 * EPS_PARAM)
 
-        assert torch.isclose(grad_auto, grad_fd, atol=ATOL_DERIV_PARAM)
+        assert torch.isclose(grad_auto[i], grad_fd, atol=ATOL_DERIV_PARAM)
 
 
-@pytest.mark.flaky(max_runs=5)
-@pytest.mark.parametrize("solver", ["dq", "krylov", "dq_me"])
+# @pytest.mark.flaky(max_runs=5)
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE, SolverType.DP5_ME])
 def test_register_coords_derivative(
-    solver: str,
+    solver: SolverType,
     duration: int,
     q0_coords: Tensor,
     q1_coords: Tensor,
@@ -286,10 +285,11 @@ def test_register_coords_derivative(
     # compare autograd gradients vs finite difference gradients
     diff_params = [q0_coords, q1_coords]
     exp_vals_auto = run_sequence(*diff_params)
-    for i, param in enumerate(diff_params):
-        # autograd
-        grad_auto = deriv_param(f=exp_vals_auto, x=param)[0]
 
+    # autograd
+    grad_auto = deriv_param(f=exp_vals_auto, x=diff_params)
+
+    for i in range(len(diff_params)):
         # finite difference
         exp_vals = torch.tensor([0.0])
         for p in [1.0, -1.0]:
@@ -299,4 +299,4 @@ def test_register_coords_derivative(
             exp_vals += p * ev[-1]
         grad_fd = exp_vals / (2 * EPS_PARAM)
 
-        assert torch.isclose(grad_auto.sum(), grad_fd, atol=ATOL_DERIV_PARAM)
+        assert torch.isclose(grad_auto[i].sum(), grad_fd, atol=ATOL_DERIV_COORD)

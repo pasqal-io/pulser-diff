@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import torch
+from pulser import Sequence
+from pyqtorch.utils import SolverType
 from torch import Tensor
 from torch.nn import Module
 
 from pulser_diff.backend import TorchEmulator
-from pulser_diff.pulser import Sequence
 from pulser_diff.simresults import SimulationResults
 from pulser_diff.utils import total_magnetization
 
@@ -16,7 +17,7 @@ class QuantumModel(Module):
         seq: Sequence,
         trainable_params: dict[str, Tensor] | None = None,
         sampling_rate: float = 1.0,
-        solver: str = "krylov",
+        solver: SolverType = SolverType.DP5_SE,
         time_grad: bool = False,
         dist_grad: bool = False,
     ) -> None:
@@ -65,17 +66,13 @@ class QuantumModel(Module):
         self.update_sequence()
 
         # create simulation object
-        self._sim = TorchEmulator.from_sequence(
-            self.built_seq, sampling_rate=self.sampling_rate
-        )
+        self._sim = TorchEmulator.from_sequence(self.built_seq, sampling_rate=self.sampling_rate)
 
     def update_sequence(self) -> None:
         self.built_seq = self._seq.build(**self.trainable_params)
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
-        self._sim = TorchEmulator.from_sequence(
-            self.built_seq, sampling_rate=self.sampling_rate
-        )
+        self._sim = TorchEmulator.from_sequence(self.built_seq, sampling_rate=self.sampling_rate)
         results = self._sim.run(
             time_grad=self.time_grad, dist_grad=self.dist_grad, solver=self.solver
         )
@@ -86,12 +83,12 @@ class QuantumModel(Module):
         evaluation_times, results = self._run()
         return evaluation_times, results.states
 
-    def expectation(self, obs: Tensor = None) -> tuple[Tensor, Tensor]:
+    def expectation(self, obs: Tensor | None = None) -> tuple[Tensor, Tensor]:
         # run sequence
         evaluation_times, results = self._run()
 
         if obs is None:
-            n_qubits = len(self._seq._register._coords)
+            n_qubits = len(self._seq._register._coords)  # type: ignore [union-attr]
             obs = total_magnetization(n_qubits)
 
         exp_val = results.expect([obs])[0]

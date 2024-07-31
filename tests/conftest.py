@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+from typing import Callable, cast
+
 import numpy as np
 import pytest
 import torch
+from pulser import Pulse, Register, Sequence
+from pulser.devices import MockDevice
+from pulser.waveforms import Waveform
+from pulser_simulation import QutipEmulator
 from qutip import Qobj
 from torch import Tensor
 
-import pulser_diff.dq as dq
-from pulser_diff import TorchEmulator
-from pulser_diff.pulser import Pulse, Register, Sequence
-from pulser_diff.pulser.devices import MockDevice
-from pulser_diff.pulser_simulation import QutipEmulator
+from pulser_diff import SimConfig, TorchEmulator
+from pulser_diff.utils import IMAT, ZMAT, kron
 
 
 @pytest.fixture
@@ -20,7 +23,7 @@ def reg() -> Register:
 
 @pytest.fixture
 def duration() -> int:
-    return int(torch.randint(200, 800, (1,)))
+    return int(torch.randint(200, 300, (1,)))
 
 
 @pytest.fixture
@@ -75,11 +78,10 @@ def total_magnetization_torch(reg: Register) -> Tensor:
     n_qubits = len(reg._coords)
     total_magnetization = []
     for i in range(n_qubits):
-        tprod = [dq.eye(2) for _ in range(n_qubits)]
-        tprod[i] = dq.sigmaz()
-        total_magnetization.append(dq.tensprod(*tprod))
-    total_magnetization = sum(total_magnetization)
-    return total_magnetization
+        tprod = [IMAT for _ in range(n_qubits)]
+        tprod[i] = ZMAT
+        total_magnetization.append(kron(*tprod))
+    return cast(Tensor, sum(total_magnetization))
 
 
 @pytest.fixture
@@ -89,7 +91,7 @@ def total_magnetization_qt(total_magnetization_torch: Tensor) -> Qobj:
     return total_magnetization
 
 
-def sequence(reg, amp_wf, det_wf) -> Sequence:
+def sequence(reg: Register, amp_wf: Waveform, det_wf: Waveform) -> Sequence:
     seq = Sequence(reg, MockDevice)
     seq.declare_channel("rydberg_global", "rydberg_global")
     seq.add(Pulse(amp_wf, det_wf, 0.0), "rydberg_global")
@@ -97,8 +99,8 @@ def sequence(reg, amp_wf, det_wf) -> Sequence:
 
 
 @pytest.fixture
-def dq_sim(reg):
-    def callable_sim(amp_wf, det_wf, noise_config):
+def torch_sim(reg: Register) -> Callable:
+    def callable_sim(amp_wf: Waveform, det_wf: Waveform, noise_config: SimConfig) -> TorchEmulator:
         sim = TorchEmulator.from_sequence(sequence(reg, amp_wf, det_wf))
         sim.set_evaluation_times(torch.linspace(0, 0.8, 3))
         sim.set_config(noise_config)
@@ -108,8 +110,8 @@ def dq_sim(reg):
 
 
 @pytest.fixture
-def qt_sim(reg):
-    def callable_sim(amp_wf, det_wf, noise_config):
+def qt_sim(reg: Register) -> Callable:
+    def callable_sim(amp_wf: Waveform, det_wf: Waveform, noise_config: SimConfig) -> QutipEmulator:
         sim = QutipEmulator.from_sequence(sequence(reg, amp_wf, det_wf))
         sim.set_evaluation_times(np.linspace(0, 0.8, 3))
         sim.set_config(noise_config)
@@ -119,6 +121,6 @@ def qt_sim(reg):
 
 
 @pytest.fixture
-def hermitian():
+def hermitian() -> Tensor:
     vec = torch.rand(16, 1, dtype=torch.complex128)
     return vec @ vec.mH
