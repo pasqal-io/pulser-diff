@@ -71,6 +71,7 @@ class SimConfig(SC):
             "depolarizing_rate",
             "eff_noise_rates",
             "eff_noise_opers",
+            "with_leakage",
         ]
         for param in param_list:
             val = getattr(simconfig, param)
@@ -104,4 +105,5 @@ class SimConfig(SC):
             self.eff_noise_rates,
             self.eff_noise_opers,
             "eff_noise" in self.noise,
+            self.with_leakage,
         )
