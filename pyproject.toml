@@ -27,8 +27,8 @@ classifiers = [
 # to maintain consistency
 dependencies = [
   "pyqtorch==1.2.5",
-  "pulser-core[torch] @ git+https://github.com/pasqal-io/Pulser/@abstract-array#subdirectory=pulser-core",
-  "pulser-simulation[torch] @ git+https://github.com/pasqal-io/Pulser/@abstract-array#subdirectory=pulser-simulation",
+  "pulser-core[torch]",
+  "pulser-simulation[torch]",
   "torch==2.0.1",
 ]
 
