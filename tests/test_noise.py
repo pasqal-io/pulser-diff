@@ -55,7 +55,7 @@ def test_linblad_noise(
     qt_results = qt_sim(amp_wf, det_wf, cfg.to_pulser()).run()
 
     for idx, qt_state in enumerate(qt_results.states):
-        torch_state_tensor = torch_results.states[idx]
+        torch_state_tensor = torch_results.states[idx].squeeze(-1)
         qt_state_tensor = torch.tensor(qt_state.data.toarray())
         assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 

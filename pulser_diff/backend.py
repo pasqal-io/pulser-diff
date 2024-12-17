@@ -538,7 +538,7 @@ class TorchEmulator:
 
                 result = mesolve(
                     H=self._hamiltonian._hamiltonian,
-                    psi0=self.initial_state,
+                    rho0=torch.matmul(self.initial_state, self.initial_state.mH).unsqueeze(-1),
                     L=collapse_ops,
                     tsave=self._eval_times_array,
                     solver=solver,

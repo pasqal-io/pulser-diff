@@ -74,12 +74,12 @@ def expect(obs: Tensor, states: Tensor) -> Tensor:
         elif states.size(-1) == states.size(-2):
             exp_val = trace(torch.matmul(obs, states))
     else:
-        if states.size(-1) == 1:
+        if len(states.shape) == 3:
+            # ket tensor of shape (n_tsteps, 2**N, n_batch)
             exp_val = torch.einsum("...ij,jk,...kl->...", states.mH, obs, states)  # <x|O|x>
-        elif states.size(0) == 1:
-            exp_val = torch.einsum("...ij,jk,...kl->...", states, obs, states.mH)
-        elif states.size(-1) == states.size(-2):
-            exp_val = torch.einsum("ij,...ji->...", obs, states)  # tr(Ox)
+        elif len(states.shape) == 4:
+            # density matrix tensor of shape (n_tsteps, 2**N, 2**N, n_batch)
+            exp_val = torch.einsum("ij,...jik->...", obs, states)  # tr(Ox)
 
     return exp_val
 
