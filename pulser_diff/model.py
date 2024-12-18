@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 from pulser import Sequence
 from pyqtorch.utils import SolverType
@@ -20,6 +22,7 @@ class QuantumModel(Module):
         solver: SolverType = SolverType.DP5_SE,
         time_grad: bool = False,
         dist_grad: bool = False,
+        **options: Any,
     ) -> None:
         """`torch` module wrapper for a `pulser_diff` sequence. Makes sequence pulse parameters
         trainable using standard `torch` training loop code.
@@ -30,12 +33,14 @@ class QuantumModel(Module):
             pulse parameters
             sampling_rate (float, optional): sampling rate for creating
             amplitude/detuning/phase samples. Defaults to 1.0.
-            solver (str, optional): solver to use in state vector simulation.
-            Defaults to "krylov".
+            solver (SolverType, optional): solver to use in state vector simulation.
+            Defaults to "DP5_SE".
             time_grad (bool, optional): whether to enable differentiability of model output
             with respect to time. Defaults to False.
             dist_grad (bool, optional): whether to enable differentiability of model output
             with respect to inter-qubit distances. Defaults to False.
+            **options (Any, optional): optional keyword arguments passed directly to underlying
+            solver.
         """
 
         super().__init__()
@@ -45,6 +50,7 @@ class QuantumModel(Module):
         self.solver = solver
         self.time_grad = time_grad
         self.dist_grad = dist_grad
+        self.options = options
 
         # register trainable parameters
         if trainable_params is not None:
@@ -74,7 +80,7 @@ class QuantumModel(Module):
     def _run(self) -> tuple[Tensor, SimulationResults]:
         self._sim = TorchEmulator.from_sequence(self.built_seq, sampling_rate=self.sampling_rate)
         results = self._sim.run(
-            time_grad=self.time_grad, dist_grad=self.dist_grad, solver=self.solver
+            time_grad=self.time_grad, dist_grad=self.dist_grad, solver=self.solver, **self.options
         )
         return self._sim.evaluation_times, results
 

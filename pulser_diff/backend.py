@@ -15,7 +15,7 @@ from pulser.devices._device_datacls import BaseDevice
 from pulser.noise_model import NoiseModel
 from pulser.register.base_register import BaseRegister
 from pulser.result import SampledResult
-from pulser.sampler.samples import ChannelSamples, SequenceSamples
+from pulser.sampler.samples import SequenceSamples
 from pulser.sequence._seq_drawer import draw_samples
 from pyqtorch import mesolve, sesolve
 from pyqtorch.utils import SolverType
@@ -459,44 +459,6 @@ class TorchEmulator:
                 v.requires_grad_(True).retain_grad()
                 self.dist_dict[k] = v
 
-        def get_min_variation(ch_sample: ChannelSamples) -> int:
-            end_point = ch_sample.duration - 1
-            min_variations: list[int] = []
-            for sample in (
-                ch_sample.amp.as_tensor(),
-                ch_sample.det.as_tensor(),
-            ):
-                min_variations.append(
-                    int(
-                        torch.min(
-                            torch.diff(
-                                torch.nonzero(torch.diff(sample)),
-                                prepend=torch.as_tensor(-1),
-                                append=torch.as_tensor(end_point),
-                            )
-                        )
-                    )
-                )
-
-            return min(min_variations)
-
-        # TODO: add options
-        # if "max_step" not in options:
-        #     options["max_step"] = (
-        #         min(
-        #             [
-        #                 get_min_variation(ch_sample)
-        #                 for ch_sample in self.samples_obj.samples_list
-        #             ]
-        #         )
-        #         / 1000
-        #     )
-        # if "nsteps" not in options:
-        #     options["nsteps"] = max(
-        #         1000, self._tot_duration // options["max_step"]
-        #     )
-        # solv_ops = qutip.Options(**options)
-
         meas_errors: Mapping[str, float] | None = None
         if "SPAM" in self.config.noise:
             meas_errors = {k: self.config.spam_dict[k] for k in ("epsilon", "epsilon_prime")}
@@ -528,6 +490,7 @@ class TorchEmulator:
                     psi0=self.initial_state,
                     tsave=self._eval_times_array,
                     solver=solver,
+                    options=options,
                 )
             elif solver == SolverType.DP5_ME:
                 if not self.config.noise:
@@ -542,6 +505,7 @@ class TorchEmulator:
                     L=collapse_ops,
                     tsave=self._eval_times_array,
                     solver=solver,
+                    options=options,
                 )
             else:
                 raise ValueError(f"Solver {solver} not available.")
