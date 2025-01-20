@@ -14,9 +14,10 @@ from pulser.noise_model import NoiseModel
 from pulser.register.base_register import QubitId
 from pulser.sampler.samples import SequenceSamples, _PulseTargetSlot
 from pulser_simulation.simconfig import SUPPORTED_NOISES, doppler_sigma
+from pyqtorch.matrices import XMAT, YMAT, ZMAT
 from torch import Tensor
 
-from pulser_diff.utils import XMAT, YMAT, ZMAT, basis_state, kron
+from pulser_diff.utils import basis_state, kron
 
 
 class Hamiltonian:

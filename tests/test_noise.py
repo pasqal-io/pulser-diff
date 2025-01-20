@@ -14,14 +14,13 @@ from pulser.waveforms import (
     Waveform,
 )
 from pulser_simulation import QutipEmulator
-
-# from pulser_simulation import SimConfig as SC
+from pyqtorch.matrices import XMAT
 from pyqtorch.utils import SolverType
 from torch import Tensor
 
 from pulser_diff import TorchEmulator
 from pulser_diff.simconfig import SimConfig
-from pulser_diff.utils import XMAT, expect, total_magnetization, trace, vn_entropy
+from pulser_diff.utils import expect, total_magnetization, trace, vn_entropy
 
 
 @pytest.mark.parametrize(

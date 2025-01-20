@@ -4,13 +4,9 @@ from functools import lru_cache, reduce
 from math import prod
 
 import torch
+from pyqtorch.matrices import IMAT, ZMAT
 from torch import Tensor, log2
 from torch.linalg import eigvalsh
-
-IMAT = torch.eye(2)
-XMAT = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=torch.complex128)
-YMAT = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=torch.complex128)
-ZMAT = torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=torch.complex128)
 
 
 def kron(*args: Tensor) -> Tensor:
