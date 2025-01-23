@@ -112,20 +112,18 @@ class QuantumModel(Module):
         seq_opt = Sequence(self.register, MockDevice)
         seq_opt.declare_channel("rydberg_global", "rydberg_global")
 
-        # construct nevelope functions
-        total_duration, params, envelope_funcs = self._create_envelope_funcs(
-            seq_opt, trainable_param_values
-        )
+        # construct envelope functions
+        total_duration, params, envelopes = self._create_envelopes(seq_opt, trainable_param_values)
 
         for t in range(int(total_duration)):
             # calculate amplitude value
-            amp_val = sum([fn(t) for fn in envelope_funcs["amplitude"]])
+            amp_val = sum([fn(t) for fn in envelopes["amplitude"]])
 
             # calculate detuning value
-            det_val = sum([fn(t) for fn in envelope_funcs["detuning"]])
+            det_val = sum([fn(t) for fn in envelopes["detuning"]])
 
             # calculate phase value
-            phase_val = sum([fn(t) for fn in envelope_funcs["phase"]])
+            phase_val = sum([fn(t) for fn in envelopes["phase"]])
 
             # create shortest possible pulse with given possibly parameterized values
             pulse = Pulse.ConstantPulse(1, amp_val, det_val, phase_val)
@@ -204,18 +202,7 @@ class QuantumModel(Module):
 
         return pulse_list, optimize_duration
 
-    def _is_duration_optimizable(self) -> bool:
-        optimize_duration = False
-        for pulse in self.seq_abs_repr:
-            duration = pulse["amplitude"]["duration"]
-
-            # get the name of duration variable
-            if isinstance(duration, VariableItem):
-                optimize_duration = True
-                break
-        return optimize_duration
-
-    def _create_envelope_funcs(
+    def _create_envelopes(
         self, seq_opt: Sequence, trainable_param_values: dict[str, Tensor] | ParameterDict
     ) -> tuple[int, dict[str, Parameter], dict[str, list]]:
         ti = 0
