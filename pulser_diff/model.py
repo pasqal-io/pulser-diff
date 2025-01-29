@@ -27,12 +27,20 @@ MockDevice = VirtualDevice(
 )
 
 
+DEFAULT_CONSTRAINTS = {
+    "duration": {"min": 1, "max": 1000},
+    "amplitude": {"min": 0.0, "max": 100.0},
+    "detuning": {"min": -100.0, "max": 100.0},
+    "phase": {"min": -2 * float(torch.pi), "max": 2 * float(torch.pi)},
+}
+
+
 @dataclass()
 class Parameter:
     name: str
     value: Union[int, float, Tensor, None] = None
     trainable: bool = False
-    is_duration: bool = False
+    type: str = ""
 
 
 class QuantumModel(Module):
@@ -40,6 +48,7 @@ class QuantumModel(Module):
         self,
         seq: Sequence,
         trainable_param_values: dict[str, Tensor],
+        constraints: dict[str, Any] | None = None,
         sampling_rate: float = 1.0,
         solver: SolverType = SolverType.DP5_SE,
         time_grad: bool = False,
@@ -68,11 +77,17 @@ class QuantumModel(Module):
         super().__init__()
 
         self.register = seq.register
+        self.device = seq.device
         self.sampling_rate = sampling_rate
         self.solver = solver
         self.time_grad = time_grad
         self.dist_grad = dist_grad
         self.options = options
+
+        # update constraints
+        self.constraints = DEFAULT_CONSTRAINTS
+        if constraints is not None:
+            self.constraints.update(constraints)
 
         # get abstract representation of initial sequence
         self.seq_abs_repr, self.optimize_duration = self._get_abstract_repr(seq)
@@ -105,11 +120,19 @@ class QuantumModel(Module):
         # build actual sequence from parameterized one
         self.update_sequence()
 
+    def _process_constraints(self, constraints: dict[str, Any] | None) -> dict[str, Any]:
+        final_constraints = DEFAULT_CONSTRAINTS
+        if constraints is not None:
+            # parse passed constraints
+            final_constraints.update(constraints)
+
+        return final_constraints
+
     def _create_opt_sequence(
         self, trainable_param_values: dict[str, Tensor] | ParameterDict
     ) -> tuple[Sequence, dict[str, Parameter]]:
         # create internal sequence and declare channels
-        seq_opt = Sequence(self.register, MockDevice)
+        seq_opt = Sequence(self.register, self.device)
         seq_opt.declare_channel("rydberg_global", "rydberg_global")
 
         # construct envelope functions
@@ -159,15 +182,13 @@ class QuantumModel(Module):
             if optimize_duration:
                 # convert duration to Parameter object
                 if isinstance(pulse["duration"], VariableItem):
-                    pulse["duration"] = Parameter(
-                        pulse["duration"].var.name, trainable=True, is_duration=True
-                    )
+                    pulse["duration"] = Parameter(pulse["duration"].var.name, trainable=True)
                 else:
                     pulse["duration"] = Parameter(
                         f"dur_var_{uuid4()}",
                         value=pulse["duration"],
                         trainable=False,
-                        is_duration=True,
+                        type="duration",
                     )
 
             # convert amplitude to Parameter object
@@ -218,15 +239,15 @@ class QuantumModel(Module):
                 value = trainable_param_values.get(var_name, None)
                 if value is None:
                     raise ValueError(f"Value for parameter {var_name} is not provided.")
-                trainable = True
             else:
                 value = duration.value / 1000
-                trainable = False
 
             # declare new variable
             if var_name not in seq_opt.declared_variables:
                 duration_var = seq_opt.declare_variable(var_name).var
-                duration_param = Parameter(name=var_name, value=value, trainable=trainable)
+                duration_param = Parameter(
+                    name=var_name, value=value, trainable=duration.trainable, type="duration"
+                )
                 params[var_name] = duration_param
             else:
                 duration_var = seq_opt.declared_variables[var_name]
@@ -247,15 +268,15 @@ class QuantumModel(Module):
                         value = trainable_param_values.get(var_name, None)
                         if value is None:
                             raise ValueError(f"Value for parameter {var_name} is not provided.")
-                        trainable = True
                     else:
                         value = param.value
-                        trainable = False
 
                     # declare new variable
                     if var_name not in seq_opt.declared_variables:
                         var = seq_opt.declare_variable(var_name).var
-                        param = Parameter(name=var_name, value=value, trainable=trainable)
+                        param = Parameter(
+                            name=var_name, value=value, trainable=param.trainable, type=s
+                        )
                         params[var_name] = param
                     else:
                         var = seq_opt.declared_variables[var_name]
@@ -281,7 +302,7 @@ class QuantumModel(Module):
             # declare new variable
             if var_name not in seq_opt.declared_variables:
                 var = seq_opt.declare_variable(var_name).var
-                param = Parameter(name=var_name, value=value, trainable=trainable)
+                param = Parameter(name=var_name, value=value, trainable=trainable, type="phase")
                 params[var_name] = param
             else:
                 var = seq_opt.declared_variables[var_name]
@@ -295,9 +316,25 @@ class QuantumModel(Module):
 
         return total_duration, params, envelope_funcs
 
+    def _check_boundaries(self) -> None:
+        for name, value in self.param_values.items():
+            # apply general constraints
+            param_type = self.params[name].type
+            if self.params[name].trainable:
+                value = torch.clamp(
+                    value, self.constraints[param_type]["min"], self.constraints[param_type]["max"]  # type: ignore [index]
+                )
+
+            # apply parameter-specific constraints
+            if name in self.constraints and self.params[name].trainable:
+                value = torch.clamp(
+                    value, self.constraints[name]["min"], self.constraints[name]["max"]  # type: ignore [index]
+                )
+
     def update_sequence(self, reconstruct_sequence: bool = False) -> None:
         if reconstruct_sequence and self.optimize_duration:
             self._seq_opt, self.params = self._create_opt_sequence(self.param_values)
+        self._check_boundaries()
         self.built_seq = self._seq_opt.build(**self.param_values)
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
