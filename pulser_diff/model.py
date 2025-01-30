@@ -90,23 +90,27 @@ class QuantumModel(Module):
             self.constraints.update(constraints)
 
         # get abstract representation of initial sequence
-        self.seq_abs_repr, self.optimize_duration = self._get_abstract_repr(seq)
+        self.seq_abs_repr, self.optimize_duration, self.params = self._get_abstract_repr(seq)
 
         if self.optimize_duration:
             # we need to build a new sequence to accomodate pulse duration optimization
-            self._seq_opt, self.params = self._create_opt_sequence(trainable_param_values)
+            total_duration = self._get_total_duration(trainable_param_values)
+            self._seq_opt = self._create_opt_sequence(total_duration)
 
             # register trainable parameters
-            self.param_values = ParameterDict(
-                {
-                    name: (
-                        torch.nn.Parameter(cast(Tensor, val.value), requires_grad=True)
-                        if val.trainable
-                        else val.value
+            self.param_values = ParameterDict()
+            for name, val in self.params.items():
+                self.param_values[name] = (
+                    torch.nn.Parameter(
+                        cast(
+                            Tensor,
+                            val.value if val.value is not None else trainable_param_values[name],
+                        ),
+                        requires_grad=True,
                     )
-                    for name, val in self.params.items()
-                }
-            )
+                    if val.trainable
+                    else val.value
+                )
         else:
             # initial sequence can be used directly for optimization
             self._seq_opt = seq
@@ -128,15 +132,13 @@ class QuantumModel(Module):
 
         return final_constraints
 
-    def _create_opt_sequence(
-        self, trainable_param_values: dict[str, Tensor] | ParameterDict
-    ) -> tuple[Sequence, dict[str, Parameter]]:
+    def _create_opt_sequence(self, total_duration: int) -> Sequence:
         # create internal sequence and declare channels
         seq_opt = Sequence(self.register, self.device)
         seq_opt.declare_channel("rydberg_global", "rydberg_global")
 
         # construct envelope functions
-        total_duration, params, envelopes = self._create_envelopes(seq_opt, trainable_param_values)
+        envelopes = self._create_envelopes(seq_opt)
 
         for t in range(int(total_duration)):
             # calculate amplitude value
@@ -152,9 +154,9 @@ class QuantumModel(Module):
             pulse = Pulse.ConstantPulse(1, amp_val, det_val, phase_val)
             seq_opt.add(pulse, "rydberg_global")
 
-        return seq_opt, params
+        return seq_opt
 
-    def _get_abstract_repr(self, seq: Sequence) -> tuple[list[dict], bool]:
+    def _get_abstract_repr(self, seq: Sequence) -> tuple[list[dict], bool, dict[str, Parameter]]:
         pulse_list = []
         all_calls = [call for call in seq._calls + seq._to_build_calls if call.name == "add"]
         for i, call in enumerate(all_calls):
@@ -174,6 +176,7 @@ class QuantumModel(Module):
                 optimize_duration = True
                 break
 
+        params = {}
         for pulse in pulse_list:
             pulse["duration"] = pulse["amplitude"]["duration"]
             pulse["amplitude"].pop("duration")
@@ -182,78 +185,88 @@ class QuantumModel(Module):
             if optimize_duration:
                 # convert duration to Parameter object
                 if isinstance(pulse["duration"], VariableItem):
-                    pulse["duration"] = Parameter(pulse["duration"].var.name, trainable=True)
+                    pulse["duration"] = Parameter(
+                        pulse["duration"].var.name, trainable=True, type="duration"
+                    )
                 else:
                     pulse["duration"] = Parameter(
                         f"dur_var_{uuid4()}",
-                        value=pulse["duration"],
+                        value=pulse["duration"] / 1000,
                         trainable=False,
                         type="duration",
                     )
+                params[pulse["duration"].name] = pulse["duration"]
 
             # convert amplitude to Parameter object
             if pulse["amplitude"]["kind"] == "constant":
                 if isinstance(pulse["amplitude"]["value"], VariableItem):
                     pulse["amplitude"]["value"] = Parameter(
-                        pulse["amplitude"]["value"].var.name, trainable=True
+                        pulse["amplitude"]["value"].var.name, trainable=True, type="amplitude"
                     )
                 else:
                     pulse["amplitude"]["value"] = Parameter(
-                        f"amp_var_{uuid4()}", value=pulse["amplitude"]["value"], trainable=False
+                        f"amp_var_{uuid4()}",
+                        value=pulse["amplitude"]["value"],
+                        trainable=False,
+                        type="amplitude",
                     )
+                params[pulse["amplitude"]["value"].name] = pulse["amplitude"]["value"]
 
             # convert detuning to Parameter object
             if pulse["detuning"]["kind"] == "constant":
                 if isinstance(pulse["detuning"]["value"], VariableItem):
                     pulse["detuning"]["value"] = Parameter(
-                        pulse["detuning"]["value"].var.name, trainable=True
+                        pulse["detuning"]["value"].var.name, trainable=True, type="detuning"
                     )
                 else:
                     pulse["detuning"]["value"] = Parameter(
-                        f"det_var_{uuid4()}", value=pulse["detuning"]["value"], trainable=False
+                        f"det_var_{uuid4()}",
+                        value=pulse["detuning"]["value"],
+                        trainable=False,
+                        type="detuning",
                     )
+                params[pulse["detuning"]["value"].name] = pulse["detuning"]["value"]
 
             # convert phase to Parameter object
             if isinstance(pulse["phase"], dict):
-                pulse["phase"] = Parameter(pulse["phase"]["lhs"].name, trainable=True)
+                pulse["phase"] = Parameter(pulse["phase"]["lhs"].name, trainable=True, type="phase")
             else:
                 pulse["phase"] = Parameter(
-                    f"phase_var_{uuid4()}", value=pulse["phase"], trainable=False
+                    f"phase_var_{uuid4()}", value=pulse["phase"], trainable=False, type="phase"
                 )
+            params[pulse["phase"].name] = pulse["phase"]
 
-        return pulse_list, optimize_duration
+        return pulse_list, optimize_duration, params
 
-    def _create_envelopes(
-        self, seq_opt: Sequence, trainable_param_values: dict[str, Tensor] | ParameterDict
-    ) -> tuple[int, dict[str, Parameter], dict[str, list]]:
-        ti = 0
+    def _get_total_duration(self, trainable_param_values: dict[str, Tensor] | ParameterDict) -> int:
         total_duration = 0
-        params = {}
-        envelope_funcs: dict = {"amplitude": [], "detuning": [], "phase": []}
         for pulse in self.seq_abs_repr:
             duration = pulse["duration"]
 
             # get the name of duration variable
             var_name = duration.name
             if duration.trainable:
-                value = trainable_param_values.get(var_name, None)
-                if value is None:
-                    raise ValueError(f"Value for parameter {var_name} is not provided.")
+                value = trainable_param_values[var_name]
             else:
-                value = duration.value / 1000
-
-            # declare new variable
-            if var_name not in seq_opt.declared_variables:
-                duration_var = seq_opt.declare_variable(var_name).var
-                duration_param = Parameter(
-                    name=var_name, value=value, trainable=duration.trainable, type="duration"
-                )
-                params[var_name] = duration_param
-            else:
-                duration_var = seq_opt.declared_variables[var_name]
+                value = duration.value
 
             # increase total duration
             total_duration += int(value * 1000)
+
+        return total_duration
+
+    def _create_envelopes(self, seq_opt: Sequence) -> dict[str, list]:
+        ti = 0
+        envelope_funcs: dict = {"amplitude": [], "detuning": [], "phase": []}
+        for pulse in self.seq_abs_repr:
+            duration = pulse["duration"]
+
+            # declare duration variable
+            var_name = duration.name
+            if var_name not in seq_opt.declared_variables:
+                duration_var = seq_opt.declare_variable(var_name).var
+            else:
+                duration_var = seq_opt.declared_variables[var_name]
 
             # end of current pulse
             tf = ti + duration_var
@@ -262,22 +275,10 @@ class QuantumModel(Module):
             for s in ["amplitude", "detuning"]:
                 wf_type = pulse[s]["kind"]
                 if wf_type == "constant":
-                    param = pulse[s]["value"]
-                    var_name = param.name
-                    if param.trainable:
-                        value = trainable_param_values.get(var_name, None)
-                        if value is None:
-                            raise ValueError(f"Value for parameter {var_name} is not provided.")
-                    else:
-                        value = param.value
-
                     # declare new variable
+                    var_name = pulse[s]["value"].name
                     if var_name not in seq_opt.declared_variables:
                         var = seq_opt.declare_variable(var_name).var
-                        param = Parameter(
-                            name=var_name, value=value, trainable=param.trainable, type=s
-                        )
-                        params[var_name] = param
                     else:
                         var = seq_opt.declared_variables[var_name]
                     fn = constant_waveform(cast(ParamObj, ti), tf, var)
@@ -288,22 +289,9 @@ class QuantumModel(Module):
                 envelope_funcs[s].append(fn)
 
             # get phase envelope function for current pulse
-            param = pulse["phase"]
-            var_name = param.name
-            if isinstance(value, dict):
-                value = trainable_param_values.get(var_name, None)
-                if value is None:
-                    raise ValueError(f"Value for parameter {var_name} is not provided.")
-                trainable = True
-            else:
-                value = param.value
-                trainable = False
-
-            # declare new variable
+            var_name = pulse["phase"].name
             if var_name not in seq_opt.declared_variables:
                 var = seq_opt.declare_variable(var_name).var
-                param = Parameter(name=var_name, value=value, trainable=trainable, type="phase")
-                params[var_name] = param
             else:
                 var = seq_opt.declared_variables[var_name]
             envelope_funcs["phase"].append(constant_waveform(cast(ParamObj, ti), tf, var))
@@ -311,10 +299,7 @@ class QuantumModel(Module):
             # shift ti to end of pulse
             ti = tf  # type: ignore [assignment]
 
-        # add 5 ns at the end of sequence
-        total_duration += 5
-
-        return total_duration, params, envelope_funcs
+        return envelope_funcs
 
     def _check_boundaries(self) -> None:
         for name, value in self.param_values.items():
@@ -333,8 +318,10 @@ class QuantumModel(Module):
 
     def update_sequence(self, reconstruct_sequence: bool = False) -> None:
         if reconstruct_sequence and self.optimize_duration:
-            self._seq_opt, self.params = self._create_opt_sequence(self.param_values)
-        self._check_boundaries()
+            total_duration = self._get_total_duration(self.param_values)
+            self._seq_opt = self._create_opt_sequence(total_duration)
+        # if self.optimize_duration:
+        #     self._check_boundaries()
         self.built_seq = self._seq_opt.build(**self.param_values)
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
