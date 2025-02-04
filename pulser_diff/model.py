@@ -48,7 +48,7 @@ class QuantumModel(Module):
         self,
         seq: Sequence,
         trainable_param_values: dict[str, Tensor],
-        constraints: dict[str, Any] | None = None,
+        constraints: dict[str, Any] = {},
         sampling_rate: float = 1.0,
         solver: SolverType = SolverType.DP5_SE,
         time_grad: bool = False,
@@ -77,17 +77,13 @@ class QuantumModel(Module):
         super().__init__()
 
         self.register = seq.register
+        self.constraints = constraints
         self.device = seq.device
         self.sampling_rate = sampling_rate
         self.solver = solver
         self.time_grad = time_grad
         self.dist_grad = dist_grad
         self.options = options
-
-        # update constraints
-        self.constraints = DEFAULT_CONSTRAINTS
-        if constraints is not None:
-            self.constraints.update(constraints)
 
         # get abstract representation of initial sequence
         self.seq_abs_repr, self.optimize_duration, self.params = self._get_abstract_repr(seq)
@@ -123,14 +119,6 @@ class QuantumModel(Module):
 
         # build actual sequence from parameterized one
         self.update_sequence()
-
-    def _process_constraints(self, constraints: dict[str, Any] | None) -> dict[str, Any]:
-        final_constraints = DEFAULT_CONSTRAINTS
-        if constraints is not None:
-            # parse passed constraints
-            final_constraints.update(constraints)
-
-        return final_constraints
 
     def _create_opt_sequence(self, total_duration: int) -> Sequence:
         # create internal sequence and declare channels
@@ -301,27 +289,18 @@ class QuantumModel(Module):
 
         return envelope_funcs
 
-    def _check_boundaries(self) -> None:
-        for name, value in self.param_values.items():
-            # apply general constraints
-            param_type = self.params[name].type
-            if self.params[name].trainable:
-                value = torch.clamp(
-                    value, self.constraints[param_type]["min"], self.constraints[param_type]["max"]  # type: ignore [index]
-                )
-
-            # apply parameter-specific constraints
-            if name in self.constraints and self.params[name].trainable:
-                value = torch.clamp(
-                    value, self.constraints[name]["min"], self.constraints[name]["max"]  # type: ignore [index]
-                )
+    def check_boundaries(self) -> None:
+        for n, p in self.named_parameters():
+            name = n.split(".")[-1]
+            if name in self.constraints:
+                p.data.clamp_(self.constraints[name]["min"], self.constraints[name]["max"])
 
     def update_sequence(self, reconstruct_sequence: bool = False) -> None:
         if reconstruct_sequence and self.optimize_duration:
             total_duration = self._get_total_duration(self.param_values)
             self._seq_opt = self._create_opt_sequence(total_duration)
-        # if self.optimize_duration:
-        #     self._check_boundaries()
+
+        # construct final sequence with actual values
         self.built_seq = self._seq_opt.build(**self.param_values)
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
