@@ -47,7 +47,7 @@ class QuantumModel(Module):
     def __init__(
         self,
         seq: Sequence,
-        trainable_param_values: dict[str, Tensor],
+        trainable_param_values: dict[str, Tensor] = {},
         constraints: dict[str, Any] = {},
         sampling_rate: float = 1.0,
         solver: SolverType = SolverType.DP5_SE,
@@ -86,39 +86,81 @@ class QuantumModel(Module):
         self.options = options
 
         # get abstract representation of initial sequence
-        self.seq_abs_repr, self.optimize_duration, self.params = self._get_abstract_repr(seq)
+        self.seq_abs_repr, self.optimize_duration, self.seq_params = self._get_abstract_repr(seq)
+
+        # extract optimizable register parameters
+        self.register_params = self._extract_register_params()
+
+        # check whether any coordinates are trainable
+        # this means that register does has to be reconstructed after
+        # each optimization iteration
+        self.reconstruct_register = any([p.trainable for p in self.register_params.values()])
+
+        # declare trainable sequence parameters
+        param_names = list(set(self.seq_params.keys()).union(set(trainable_param_values.keys())))
+        self.seq_param_values = ParameterDict()
+        for name in param_names:
+            if name in trainable_param_values:
+                val = trainable_param_values[name]
+                trainable = True
+            else:
+                val = self.seq_params[name].value  # type: ignore [assignment]
+                trainable = True if self.seq_params[name].trainable else False
+                if val is None and trainable:
+                    raise ValueError(f"No value for trainable parameter {name} is given.")
+            self.seq_param_values[name] = (
+                torch.nn.Parameter(val, requires_grad=True) if trainable else val
+            )
+
+        # declare trainable register parameters
+        self.reg_param_values = ParameterDict()
+        for name, param in self.register_params.items():
+            self.reg_param_values[name] = (
+                torch.nn.Parameter(cast(Tensor, param.value), requires_grad=True)
+                if param.trainable
+                else param.value
+            )
+
+        # construct register with Parameter objects for coordinates
+        self.register = self._construct_register()
 
         if self.optimize_duration:
             # we need to build a new sequence to accomodate pulse duration optimization
             total_duration = self._get_total_duration(trainable_param_values)
             self._seq_opt = self._create_opt_sequence(total_duration)
-
-            # register trainable parameters
-            self.param_values = ParameterDict()
-            for name, val in self.params.items():
-                self.param_values[name] = (
-                    torch.nn.Parameter(
-                        cast(
-                            Tensor,
-                            val.value if val.value is not None else trainable_param_values[name],
-                        ),
-                        requires_grad=True,
-                    )
-                    if val.trainable
-                    else val.value
-                )
         else:
             # initial sequence can be used directly for optimization
+            seq._set_register(seq, self.register)
             self._seq_opt = seq
-            self.param_values = ParameterDict(
-                {
-                    name: torch.nn.Parameter(val, requires_grad=True)
-                    for name, val in trainable_param_values.items()
-                }
-            )
 
         # build actual sequence from parameterized one
-        self.update_sequence()
+        if self._seq_opt.is_parametrized():
+            build_params = {
+                name: val
+                for name, val in self.seq_param_values.items()
+                if name in self._seq_opt.declared_variables
+            }
+            self.built_seq = self._seq_opt.build(**build_params)
+        else:
+            self.built_seq = self._seq_opt
+
+    def _extract_register_params(self) -> dict[str, Parameter]:
+        # create Parameter objects from register's qubit coordinates
+        register_params = {}
+        for qubit_id, coord in self.register.qubits.items():
+            register_params[str(qubit_id)] = Parameter(
+                str(qubit_id), coord.as_tensor(), coord.requires_grad, type="coord"
+            )
+        return register_params
+
+    def _construct_register(self) -> Register:
+        coord_names = set([p.name for p in self.register_params.values()])
+        coords = {}
+        for n, p in self.named_parameters():
+            name = n.split(".")[-1]
+            if name in coord_names:
+                coords[name] = p
+        return Register(coords)
 
     def _create_opt_sequence(self, total_duration: int) -> Sequence:
         # create internal sequence and declare channels
@@ -147,7 +189,7 @@ class QuantumModel(Module):
     def _get_abstract_repr(self, seq: Sequence) -> tuple[list[dict], bool, dict[str, Parameter]]:
         pulse_list = []
         all_calls = [call for call in seq._calls + seq._to_build_calls if call.name == "add"]
-        for i, call in enumerate(all_calls):
+        for call in all_calls:
             pulse = call.args[0]
             d = {
                 k: v._to_abstract_repr() if hasattr(v, "_to_abstract_repr") else v
@@ -241,6 +283,9 @@ class QuantumModel(Module):
             # increase total duration
             total_duration += int(value * 1000)
 
+        # add 5 ns to improve convergence
+        total_duration += 5
+
         return total_duration
 
     def _create_envelopes(self, seq_opt: Sequence) -> dict[str, list]:
@@ -295,13 +340,26 @@ class QuantumModel(Module):
             if name in self.constraints:
                 p.data.clamp_(self.constraints[name]["min"], self.constraints[name]["max"])
 
-    def update_sequence(self, reconstruct_sequence: bool = False) -> None:
-        if reconstruct_sequence and self.optimize_duration:
-            total_duration = self._get_total_duration(self.param_values)
-            self._seq_opt = self._create_opt_sequence(total_duration)
+    def update_sequence(self) -> None:
+        if self.reconstruct_register:
+            self.register = self._construct_register()
 
-        # construct final sequence with actual values
-        self.built_seq = self._seq_opt.build(**self.param_values)
+        if self.optimize_duration:
+            total_duration = self._get_total_duration(self.seq_param_values)
+            self._seq_opt = self._create_opt_sequence(total_duration)
+        else:
+            self._seq_opt._set_register(self._seq_opt, self.register)
+
+        if self._seq_opt.is_parametrized():
+            # construct final sequence with actual values
+            build_params = {
+                name: val
+                for name, val in self.seq_param_values.items()
+                if name in self._seq_opt.declared_variables
+            }
+            self.built_seq = self._seq_opt.build(**build_params)
+        else:
+            self.built_seq = self._seq_opt
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
         self._sim = TorchEmulator.from_sequence(self.built_seq, sampling_rate=self.sampling_rate)

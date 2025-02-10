@@ -26,9 +26,9 @@ classifiers = [
 # always specify a version for each package
 # to maintain consistency
 dependencies = [
-  "pyqtorch==1.6.0",
-  "pulser-core[torch]",
-  "pulser-simulation[torch]",
+  "pyqtorch",
+  "pulser-core[torch] @ git+https://github.com/pasqal-io/Pulser/@develop#subdirectory=pulser-core",
+  "pulser-simulation[torch] @ git+https://github.com/pasqal-io/Pulser/@develop#subdirectory=pulser-simulation",
   "torch==2.0.1",
 ]
 
