@@ -336,7 +336,7 @@ class QuantumModel(Module):
 
         return envelope_funcs
 
-    def check_boundaries(self) -> None:
+    def check_constraints(self) -> None:
         for n, p in self.named_parameters():
             name = n.split(".")[-1]
             if name in self.constraints:
