@@ -97,29 +97,32 @@ class QuantumModel(Module):
         self.reconstruct_register = any([p.trainable for p in self.register_params.values()])
 
         # declare trainable sequence parameters
-        param_names = list(set(self.seq_params.keys()).union(set(trainable_param_values.keys())))
+        param_names = list(
+            set(self.seq_params.keys())
+            .union(set(trainable_param_values.keys()))
+            .union(set(seq.declared_variables))
+            .difference(set(self.register_params.keys()))
+        )
         self.seq_param_values = ParameterDict()
         for name in param_names:
-            if name in trainable_param_values:
-                val = trainable_param_values[name]
-                trainable = True
-            else:
-                val = self.seq_params[name].value  # type: ignore [assignment]
-                trainable = True if self.seq_params[name].trainable else False
-                if val is None and trainable:
-                    raise ValueError(f"No value for trainable parameter {name} is given.")
-            self.seq_param_values[name] = (
-                torch.nn.Parameter(val, requires_grad=True) if trainable else val
-            )
+            if (name in trainable_param_values) and (name in seq.declared_variables):
+                self.seq_param_values[name] = torch.nn.Parameter(
+                    trainable_param_values[name], requires_grad=True
+                )
+            elif name in self.seq_params:
+                if self.seq_params[name].trainable:
+                    raise ValueError(f"No value for trainable sequence parameter {name} is given.")
+                self.seq_param_values[name] = self.seq_params[name].value
 
         # declare trainable register parameters
         self.reg_param_values = ParameterDict()
         for name, param in self.register_params.items():
-            self.reg_param_values[name] = (
-                torch.nn.Parameter(cast(Tensor, param.value), requires_grad=True)
-                if param.trainable
-                else param.value
-            )
+            if name in trainable_param_values and param.trainable:
+                self.reg_param_values[name] = torch.nn.Parameter(
+                    trainable_param_values[name], requires_grad=True
+                )
+            else:
+                self.reg_param_values[name] = param.value.tolist()  # type: ignore [union-attr]
 
         # construct register with Parameter objects for coordinates
         self.register = self._construct_register()
@@ -156,10 +159,9 @@ class QuantumModel(Module):
     def _construct_register(self) -> Register:
         coord_names = set([p.name for p in self.register_params.values()])
         coords = {}
-        for n, p in self.named_parameters():
-            name = n.split(".")[-1]
+        for name, value in self.reg_param_values.items():
             if name in coord_names:
-                coords[name] = p
+                coords[name] = value
         return Register(coords)
 
     def _create_opt_sequence(self, total_duration: int) -> Sequence:
