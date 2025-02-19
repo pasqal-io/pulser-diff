@@ -55,7 +55,7 @@ def test_linblad_noise(
 
     for idx, qt_state in enumerate(qt_results.states):
         torch_state_tensor = torch_results.states[idx].squeeze(-1)
-        qt_state_tensor = torch.tensor(qt_state.data.toarray())
+        qt_state_tensor = torch.tensor(qt_state.full())
         assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 
 
@@ -80,7 +80,7 @@ def test_laser_waist(
 
     for idx, qt_state in enumerate(qt_results.states):
         torch_state_tensor = torch_results.states[idx]
-        qt_state_tensor = torch.tensor(qt_state.data.toarray())
+        qt_state_tensor = torch.tensor(qt_state.full())
         assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 
 
@@ -144,7 +144,7 @@ def test_1qbit() -> None:
 
     assert torch.allclose(
         res_dq.states[-1],
-        torch.tensor(res_qt.states[-1].data.toarray()),
+        torch.tensor(res_qt.states[-1].full()),
         ATOL_NOISE,
         RTOL_NOISE,
     )
