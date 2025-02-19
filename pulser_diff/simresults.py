@@ -142,7 +142,7 @@ class SimulationResults(ABC, Results[ResultType]):
             measured quantum states at time t.
         """
         t_index = self._get_index_from_time(t, t_tol)
-        return self[t_index].get_samples(n_samples)
+        return self[t_index].get_samples(n_samples)  # type: ignore [no-any-return]
 
     def sample_final_state(self, N_samples: int = 1000) -> Counter:
         """Returns the result of multiple measurements of the final state.
