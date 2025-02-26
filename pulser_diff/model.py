@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Union, cast
+from typing import Any, Union, cast
 from uuid import uuid4
 
 import torch
 from pulser import Pulse, Register, Sequence
-from pulser.channels import Rydberg
-from pulser.devices import VirtualDevice
 from pulser.parametrized import ParamObj
 from pulser.parametrized.variable import VariableItem
 from pyqtorch.utils import SolverType
@@ -16,23 +14,8 @@ from torch.nn import Module, ParameterDict
 
 from pulser_diff.backend import TorchEmulator
 from pulser_diff.simresults import SimulationResults
-from pulser_diff.utils import basis_state, total_magnetization
+from pulser_diff.utils import total_magnetization
 from pulser_diff.waveform_funcs import constant_waveform
-
-MockDevice = VirtualDevice(
-    name="MockDevice",
-    dimensions=2,
-    rydberg_level=60,
-    channel_objects=(Rydberg.Global(125.66370614359172, 12.566370614359172, max_duration=None),),
-)
-
-
-DEFAULT_CONSTRAINTS = {
-    "duration": {"min": 1, "max": 1000},
-    "amplitude": {"min": 0.0, "max": 100.0},
-    "detuning": {"min": -100.0, "max": 100.0},
-    "phase": {"min": -2 * float(torch.pi), "max": 2 * float(torch.pi)},
-}
 
 
 @dataclass()
@@ -62,6 +45,8 @@ class QuantumModel(Module):
             seq (Sequence): parameterized sequence
             trainable_params (dict[str, Tensor]): dict containing tensor values for
             pulse parameters
+            constraints (dict[str, Any]): dict specifying min/max values for trainable parameters.
+            Has form {"param1": {"min": min_val, "max": max_val}}.
             sampling_rate (float, optional): sampling rate for creating
             amplitude/detuning/phase samples. Defaults to 1.0.
             solver (SolverType, optional): solver to use in state vector simulation.
@@ -128,7 +113,7 @@ class QuantumModel(Module):
         self.register = self._construct_register()
 
         if self.optimize_duration:
-            # we need to build a new sequence to accomodate pulse duration optimization
+            # we need to build a new sequence to accommodate pulse duration optimization
             total_duration = self._get_total_duration(trainable_param_values)
             self._seq_opt = self._create_opt_sequence(total_duration)
         else:
@@ -158,10 +143,9 @@ class QuantumModel(Module):
 
     def _construct_register(self) -> Register:
         coord_names = set([p.name for p in self.register_params.values()])
-        coords = {}
-        for name, value in self.reg_param_values.items():
-            if name in coord_names:
-                coords[name] = value
+        coords = {
+            name: value for name, value in self.reg_param_values.items() if name in coord_names
+        }
         return Register(coords)
 
     def _create_opt_sequence(self, total_duration: int) -> Sequence:
@@ -199,14 +183,9 @@ class QuantumModel(Module):
             }
             pulse_list.append(d)
 
-        optimize_duration = False
-        for pulse in pulse_list:
-            duration = pulse["amplitude"]["duration"]
-
-            # get the name of duration variable
-            if isinstance(duration, VariableItem):
-                optimize_duration = True
-                break
+        optimize_duration = any(
+            [isinstance(pulse["amplitude"]["duration"], VariableItem) for pulse in pulse_list]
+        )
 
         params = {}
         for pulse in pulse_list:
@@ -275,10 +254,8 @@ class QuantumModel(Module):
         for pulse in self.seq_abs_repr:
             duration = pulse["duration"]
 
-            # get the name of duration variable
-            var_name = duration.name
             if duration.trainable:
-                value = trainable_param_values[var_name]
+                value = trainable_param_values[duration.name]
             else:
                 value = duration.value
 
@@ -386,226 +363,3 @@ class QuantumModel(Module):
         exp_val = results.expect([obs])[0]
 
         return evaluation_times, exp_val
-
-
-class QGateModel(Module):
-    def __init__(
-        self,
-        seq: Sequence,
-        trainable_params: dict[str, Tensor] | None = None,
-        solver: SolverType = SolverType.DP5_SE,
-        sampling_rate: float = 1.0,
-        time_grad: bool = False,
-        dist_grad: bool = False,
-    ) -> None:
-        """`torch` module wrapper for a `pulser_diff` sequence. Makes sequence pulse parameters
-        trainable using standard `torch` training loop code.
-
-        Args:
-            seq (Sequence): parameterized sequence
-            trainable_params (dict[str, Tensor]): dict containing tensor values for
-            pulse parameters
-            sampling_rate (float, optional): sampling rate for creating
-            amplitude/detuning/phase samples. Defaults to 1.0.
-            solver (str, optional): solver to use in state vector simulation.
-            Defaults to "krylov".
-            time_grad (bool, optional): whether to enable differentiability of model output
-            with respect to time. Defaults to False.
-            dist_grad (bool, optional): whether to enable differentiability of model output
-            with respect to inter-qubit distances. Defaults to False.
-        """
-
-        super().__init__()
-
-        self._seq = seq
-        self.solver = solver
-        self.sampling_rate = sampling_rate
-        self.time_grad = time_grad
-        self.dist_grad = dist_grad
-        self.t: list[int] = []
-
-        self.n_qubits = len(self._seq.qubit_info)
-
-        # register trainable parameters
-        if trainable_params is not None:
-            self.trainable_params = torch.nn.ParameterDict(
-                {
-                    name: torch.nn.Parameter(val, requires_grad=True)
-                    for name, val in trainable_params.items()
-                }
-            )
-        else:
-            self.trainable_params = torch.nn.ParameterDict(
-                {
-                    name: torch.nn.Parameter(torch.rand(1) + 1.0, requires_grad=True)
-                    for name in seq.declared_variables
-                }
-            )
-
-        # build actual sequence from parameterized one
-        self.update_sequence()
-
-    def update_sequence(self) -> None:
-        self.built_seq = self._seq.build(**self.trainable_params)
-
-    def forward(self) -> Tensor:
-        # run sequence for different input state
-
-        self._sim = TorchEmulator.from_sequence(
-            self.built_seq,
-            evaluation_times=0.05,
-            sampling_rate=self.sampling_rate,
-            with_modulation=False,
-        )
-
-        res_list = []
-        n_dim = 2**self.n_qubits
-        for k in range(n_dim):
-            self._sim.set_initial_state(basis_state(n_dim, k))
-            results = self._sim.run(solver=self.solver)
-            res_list.append(results.states[-1])
-
-        return torch.hstack(res_list)
-
-
-class QGATEM2(Module):
-    def __init__(
-        self,
-        register: Register,
-        seq_length: int,
-        trainable_params: dict[str, Tensor],
-        pulse_fn: Callable,
-        solver: SolverType = SolverType.DP5_SE,
-    ) -> None:
-        """`torch` module wrapper for a `pulser_diff` sequence. Makes sequence pulse parameters
-        trainable using standard `torch` training loop code.
-
-        Args:
-            reg (Register) : the quantum register
-            seq_length (int) : the length of the sequence in ns
-            trainable_params (dict[str, Tensor]): dict containing tensor values for
-            pulse parameters
-            pulse_fn: the function that build the sequence from the primary parameters
-        """
-
-        super().__init__()
-
-        self.solver = solver
-        self.register = register
-        self.n_qubits = len(register.qubits)
-        self.seq_length = seq_length
-
-        self._create_sequence()
-        self.pulse_fn = pulse_fn
-        self.set_params(trainable_params)
-
-        # build actual sequence from parameterized one
-        self.update_sequence()
-
-    def set_params(self, trainable_params: dict) -> None:
-        self.trainable_params = torch.nn.ParameterDict(
-            {
-                name: torch.nn.Parameter(val, requires_grad=True)
-                for name, val in trainable_params.items()
-            }
-        )
-
-    def _create_sequence(self) -> None:
-        seq = Sequence(self.register, MockDevice)
-        seq.declare_channel("rydberg_global", "rydberg_global")
-        amp = seq.declare_variable("amp", size=self.seq_length)
-        det = seq.declare_variable("det", size=self.seq_length)
-        phi = seq.declare_variable("phi", size=self.seq_length)
-
-        for k in range(self.seq_length):
-            seq.add(Pulse.ConstantPulse(1, amp[k], det[k], phi[k]), "rydberg_global")
-
-        self._seq = seq
-
-    def update_sequence(self) -> None:
-        self.pulse_values = self.pulse_fn(self.trainable_params)
-        self.built_seq = self._seq.build(**self.pulse_values)
-
-    def forward(self) -> Tensor:
-        # run sequence for different input state
-
-        self._sim = TorchEmulator.from_sequence(
-            self.built_seq,
-            evaluation_times=0.05,
-            with_modulation=False,
-        )
-
-        self._sim.set_initial_state(torch.eye(2**self.n_qubits))
-        res = self._sim.run(solver=self.solver)
-        return res.states[-1]
-
-
-class StatePreparationModel(Module):
-    def __init__(
-        self,
-        register: Register,
-        seq_length: int,
-        trainable_params: dict[str, Tensor],
-        pulse_fn: Callable,
-        solver: SolverType = SolverType.DP5_SE,
-    ) -> None:
-        """`torch` module wrapper for a `pulser_diff` sequence. Makes sequence pulse parameters
-        trainable using standard `torch` training loop code.
-
-        Args:
-            reg (Register) : the quantum register
-            seq_length (int) : the length of the sequence in ns
-            trainable_params (dict[str, Tensor]): dict containing tensor values for
-            pulse parameters
-            pulse_fn: the function that build the sequence from the primary parameters
-        """
-
-        super().__init__()
-
-        self.solver = solver
-        self.register = register
-        self.n_qubits = len(register.qubits)
-        self.seq_length = seq_length
-
-        self._create_sequence()
-        self.pulse_fn = pulse_fn
-        self.set_params(trainable_params)
-
-        # build actual sequence from parameterized one
-        self.update_sequence()
-
-    def set_params(self, trainable_params: dict) -> None:
-        self.trainable_params = torch.nn.ParameterDict(
-            {
-                name: torch.nn.Parameter(val, requires_grad=True)
-                for name, val in trainable_params.items()
-            }
-        )
-
-    def _create_sequence(self) -> None:
-        seq = Sequence(self.register, MockDevice)
-        seq.declare_channel("rydberg_global", "rydberg_global")
-        amp = seq.declare_variable("amp", size=self.seq_length)
-        det = seq.declare_variable("det", size=self.seq_length)
-        phi = seq.declare_variable("phi", size=self.seq_length)
-
-        for k in range(self.seq_length):
-            seq.add(Pulse.ConstantPulse(1, amp[k], det[k], phi[k]), "rydberg_global")
-
-        self._seq = seq
-
-    def update_sequence(self) -> None:
-        self.pulse_values = self.pulse_fn(self.trainable_params)
-        self.built_seq = self._seq.build(**self.pulse_values)
-
-    def forward(self) -> Tensor:
-        # run sequence for different input state
-
-        self._sim = TorchEmulator.from_sequence(
-            self.built_seq,
-            evaluation_times=0.05,
-            with_modulation=False,
-        )
-
-        res = self._sim.run(solver=self.solver)
-        return res.states[-1]
