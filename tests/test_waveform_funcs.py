@@ -18,7 +18,7 @@ def test_constant_pulse() -> None:
 
     # generate random numerical values for variables
     ti_val = torch.rand(1)
-    tf_val = ti_val + torch.rand(1)
+    tf_val = ti_val + torch.rand(1) + 0.3
     value_val = torch.rand(1) * 5 + 1
 
     # assign numerical values to variables

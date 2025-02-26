@@ -43,7 +43,7 @@ allow-ambiguous-features = true
 # PIP_EXTRA_INDEX_URL = "https://{env:PYPI_USERNAME}:{env:PYPI_PASSWORD}@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple"
 
 [project.urls]
-Documentation = ""
+# Documentation = ""
 Issues = "https://gitlab.pasqal.com/pqs/pulser-diff/-/issues"
 Source = "https://gitlab.pasqal.com/pqs/pulser-diff"
 
@@ -71,15 +71,14 @@ dependencies = [
 
 [tool.hatch.envs.default.scripts]
 test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=pulser_diff {args}"
-test-examples = "pytest ./tests/test_examples.py {args}"
-test-docs = "mkdocs build --clean --strict"
+test-notebooks = "pytest -vvv ./tests/test_notebooks.py {args}"
 
 [tool.pytest.ini_options]
 markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 testpaths = ["tests"]
-addopts = """-vvv"""
+addopts = """-vvv --cov-report=term-missing --cov-config=pyproject.toml --cov=qadence2_demos --cov=tests"""
 xfail_strict = true
 filterwarnings = [
   "ignore:Call to deprecated create function FieldDescriptor",
@@ -98,21 +97,22 @@ dependencies = [
   "mkdocstrings",
   "mkdocstrings-python",
   "mkdocs-section-index",
-  "mkdocs-jupyter",
   "mkdocs-exclude",
   "markdown-exec",
-  "notebook<7",
+  "mkdocs-jupyter",
+  "nbconvert",
   "jupyter_contrib_nbextensions",
-  "dill",
+  "notebook<7.0",
+  "mike",
 ]
-features = ["all"]
 
 [tool.hatch.envs.docs.scripts]
-build = "mkdocs build --clean --strict"
+build = "mkdocs build --clean --strict {args}"
 serve = "mkdocs serve --dev-addr localhost:8000"
+test = "mkdocs build --clean --strict"
 
 [[tool.hatch.envs.test.matrix]]
-python = ["39", "310"]
+python = ["310", "311", "312"]
 
 [tool.coverage.run]
 branch = true
