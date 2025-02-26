@@ -65,7 +65,7 @@ plugins:
           docstring_section_style: spacy
 
 watch:
-  - qadence2_demos
+  - pulser_diff
 
 extra:
  version:
