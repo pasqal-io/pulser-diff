@@ -54,15 +54,14 @@ plugins:
     default_handler: python
     handlers:
       python:
-        selection:
-          filters:
-            - "!^_"  # exlude all members starting with _
-            - "^__init__$"  # but always include __init__ modules and methods
         options:
           show_root_toc_entry: false
           heading_level: 3
           merge_init_into_class: true
           docstring_section_style: spacy
+          filters:
+            - "!^_"  # exlude all members starting with _
+            - "^__init__$"  # but always include __init__ modules and methods
 
 watch:
   - pulser_diff
