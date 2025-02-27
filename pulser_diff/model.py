@@ -18,7 +18,7 @@ from pulser_diff.utils import total_magnetization
 from pulser_diff.waveform_funcs import constant_waveform
 
 
-@dataclass()
+@dataclass
 class Parameter:
     name: str
     value: Union[int, float, Tensor, None] = None
@@ -77,7 +77,7 @@ class QuantumModel(Module):
         self.register_params = self._extract_register_params()
 
         # check whether any coordinates are trainable
-        # this means that register does has to be reconstructed after
+        # this means that register has to be reconstructed after
         # each optimization iteration
         self.reconstruct_register = any([p.trainable for p in self.register_params.values()])
 
@@ -202,7 +202,7 @@ class QuantumModel(Module):
                 else:
                     pulse["duration"] = Parameter(
                         f"dur_var_{uuid4()}",
-                        value=pulse["duration"] / 1000,
+                        value=pulse["duration"] / 1000,  # convert duration in ns to us
                         trainable=False,
                         type="duration",
                     )
