@@ -210,9 +210,18 @@ class QuantumModel(Module):
             }
             pulse_list.append(d)
 
-        optimize_duration = any(
-            [isinstance(pulse["amplitude"]["duration"], VariableItem) for pulse in pulse_list]
-        )
+        optimize_duration = False
+        for pulse in pulse_list:
+            if "duration" in pulse["amplitude"]:
+                duration = pulse["amplitude"]["duration"]
+            else:
+                samples = pulse["amplitude"]["samples"]
+                duration = samples.size if isinstance(samples, Variable) else len(samples)
+
+            # get the name of duration variable
+            if isinstance(duration, VariableItem):
+                optimize_duration = True
+                break
 
         params = {}
         for pulse in pulse_list:

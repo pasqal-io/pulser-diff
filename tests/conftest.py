@@ -64,6 +64,30 @@ def kaiser_area() -> Tensor:
 
 
 @pytest.fixture
+def param1() -> Tensor:
+    return torch.rand(1, requires_grad=True) * 5.0 + 2.0
+
+
+@pytest.fixture
+def param2() -> Tensor:
+    return torch.rand(1, requires_grad=True) * 5.0 + 2.0
+
+
+@pytest.fixture
+def custom_pulse_duration() -> int:
+    return int(torch.randint(200, 300, (1,)))
+
+
+@pytest.fixture
+def custom_wf_func(custom_pulse_duration: int) -> Callable:
+    def custom_wf(param1: Tensor, param2: Tensor) -> Tensor:
+        x = torch.arange(custom_pulse_duration) / custom_pulse_duration
+        return param1 * torch.sin(torch.pi * x) * torch.exp(-param2 * x)
+
+    return custom_wf
+
+
+@pytest.fixture
 def seq(reg: Register) -> Sequence:
     # create sequence and declare channels
     seq = Sequence(reg, MockDevice)
