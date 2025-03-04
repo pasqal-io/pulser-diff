@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import math
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Tuple, cast
 
 import qutip
-from pulser.noise_model import NoiseModel
+from pulser.noise_model import NoiseModel, NoiseTypes
 from pulser_simulation import SimConfig as SC
+from pulser_simulation.simconfig import _DIFF_NOISE_PARAMS
 from torch import Tensor
 
 
@@ -91,6 +94,26 @@ class SimConfig(SC):
                 )
 
         return simconfig
+
+    def to_noise_model(self) -> NoiseModel:
+        """Creates a NoiseModel from the SimConfig."""
+        laser_waist_ = None if math.isinf(self.laser_waist) else self.laser_waist
+        relevant_params = NoiseModel._find_relevant_params(
+            cast(Tuple[NoiseTypes, ...], self.noise),
+            self.eta,
+            self.amp_sigma,
+            laser_waist_,
+        )
+        kwargs = {}
+        for param in relevant_params:
+            kwargs[param] = getattr(self, _DIFF_NOISE_PARAMS.get(param, param))
+        if "temperature" in kwargs:
+            kwargs["temperature"] *= 1e6  # Converts back to µK
+        if "eff_noise_opers" in kwargs:
+            kwargs["eff_noise_opers"] = [
+                op.full() if isinstance(op, qutip.Qobj) else op for op in kwargs["eff_noise_opers"]
+            ]
+        return NoiseModel(**kwargs)
 
     def _check_eff_noise(self) -> None:
         # Check the validity of operators

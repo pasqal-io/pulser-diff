@@ -14,14 +14,13 @@ from pulser.waveforms import (
     Waveform,
 )
 from pulser_simulation import QutipEmulator
-
-# from pulser_simulation import SimConfig as SC
+from pyqtorch.matrices import XMAT
 from pyqtorch.utils import SolverType
 from torch import Tensor
 
 from pulser_diff import TorchEmulator
 from pulser_diff.simconfig import SimConfig
-from pulser_diff.utils import XMAT, expect, total_magnetization, trace, vn_entropy
+from pulser_diff.utils import expect, total_magnetization, trace, vn_entropy
 
 
 @pytest.mark.parametrize(
@@ -55,8 +54,8 @@ def test_linblad_noise(
     qt_results = qt_sim(amp_wf, det_wf, cfg.to_pulser()).run()
 
     for idx, qt_state in enumerate(qt_results.states):
-        torch_state_tensor = torch_results.states[idx]
-        qt_state_tensor = torch.tensor(qt_state.data.toarray())
+        torch_state_tensor = torch_results.states[idx].squeeze(-1)
+        qt_state_tensor = torch.tensor(qt_state.full())
         assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 
 
@@ -81,7 +80,7 @@ def test_laser_waist(
 
     for idx, qt_state in enumerate(qt_results.states):
         torch_state_tensor = torch_results.states[idx]
-        qt_state_tensor = torch.tensor(qt_state.data.toarray())
+        qt_state_tensor = torch.tensor(qt_state.full())
         assert torch.allclose(torch_state_tensor, qt_state_tensor, rtol=RTOL_NOISE, atol=ATOL_NOISE)
 
 
@@ -145,7 +144,7 @@ def test_1qbit() -> None:
 
     assert torch.allclose(
         res_dq.states[-1],
-        torch.tensor(res_qt.states[-1].data.toarray()),
+        torch.tensor(res_qt.states[-1].full()),
         ATOL_NOISE,
         RTOL_NOISE,
     )
