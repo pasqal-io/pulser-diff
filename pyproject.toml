@@ -25,6 +25,7 @@ classifiers = [
 
 # always specify a version for each package
 # to maintain consistency
+# pulser-core and pulser-simulation are tied to specific commit - don't change it
 dependencies = [
   "pyqtorch",
   "pulser-core[torch] @ git+https://github.com/pasqal-io/Pulser.git@fcf980463f47b92722901aba0e63bec9a28e01af#subdirectory=pulser-core",
