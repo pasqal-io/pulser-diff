@@ -36,8 +36,6 @@ theme:
 
 markdown_extensions:
 - admonition  # for notes
-- pymdownx.arithmatex: # for mathjax
-    generic: true
 - pymdownx.highlight:
     anchor_linenums: true
 - pymdownx.inlinehilite
@@ -76,6 +74,5 @@ extra_css:
 
 # For mathjax
 extra_javascript:
+  - https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_HTML
   - javascripts/mathjax.js
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
-  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
