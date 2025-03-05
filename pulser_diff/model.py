@@ -78,7 +78,8 @@ class QuantumModel(Module):
             name: val[1] for name, val in trainable_param_values.items() if isinstance(val, tuple)
         }
 
-        # remove callable parameter from trainable param dict
+        # remove callable parameter (that is not a true trainable parameter, more of a placeholder)
+        # from trainable param dict
         for name in self.callables.keys():
             trainable_param_values.pop(name)
 
@@ -200,7 +201,7 @@ class QuantumModel(Module):
         return seq_opt
 
     def _get_abstract_repr(self, seq: Sequence) -> tuple[list[dict], bool, dict[str, Parameter]]:
-        pulse_list = []
+        pulses = []
         all_calls = [call for call in seq._calls + seq._to_build_calls if call.name == "add"]
         for call in all_calls:
             pulse = call.args[0]
@@ -208,10 +209,10 @@ class QuantumModel(Module):
                 k: v._to_abstract_repr() if hasattr(v, "_to_abstract_repr") else v
                 for k, v in pulse._to_abstract_repr().items()
             }
-            pulse_list.append(d)
+            pulses.append(d)
 
         optimize_duration = False
-        for pulse in pulse_list:
+        for pulse in pulses:
             if "duration" in pulse["amplitude"]:
                 duration = pulse["amplitude"]["duration"]
             else:
@@ -224,7 +225,7 @@ class QuantumModel(Module):
                 break
 
         params = {}
-        for pulse in pulse_list:
+        for pulse in pulses:
             # get duration of the pulse
             if "duration" in pulse["amplitude"]:
                 pulse["duration"] = pulse["amplitude"]["duration"]
@@ -290,7 +291,7 @@ class QuantumModel(Module):
                 )
             params[pulse["phase"].name] = pulse["phase"]
 
-        return pulse_list, optimize_duration, params
+        return pulses, optimize_duration, params
 
     def _get_total_duration(
         self,
