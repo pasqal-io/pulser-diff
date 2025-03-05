@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Union, cast
+from typing import Any, Callable, Union, cast
 from uuid import uuid4
 
 import torch
 from pulser import Pulse, Register, Sequence
 from pulser.parametrized import ParamObj
-from pulser.parametrized.variable import VariableItem
+from pulser.parametrized.variable import Variable, VariableItem
 from pyqtorch.utils import SolverType
 from torch import Tensor
 from torch.nn import Module, ParameterDict
@@ -30,7 +30,7 @@ class QuantumModel(Module):
     def __init__(
         self,
         seq: Sequence,
-        trainable_param_values: dict[str, Tensor] = {},
+        trainable_param_values: dict[str, Tensor] | dict[str, tuple[tuple, Callable]] = {},
         constraints: dict[str, Any] = {},
         sampling_rate: float = 1.0,
         solver: SolverType = SolverType.DP5_SE,
@@ -70,6 +70,19 @@ class QuantumModel(Module):
         self.dist_grad = dist_grad
         self.options = options
 
+        # process trainable parameter dict
+        self.callable_params = {
+            name: val[0] for name, val in trainable_param_values.items() if isinstance(val, tuple)
+        }
+        self.callables = {
+            name: val[1] for name, val in trainable_param_values.items() if isinstance(val, tuple)
+        }
+
+        # remove callable parameter (that is not a true trainable parameter, more of a placeholder)
+        # from trainable param dict
+        for name in self.callables.keys():
+            trainable_param_values.pop(name)
+
         # get abstract representation of initial sequence
         self.seq_abs_repr, self.optimize_duration, self.seq_params = self._get_abstract_repr(seq)
 
@@ -92,7 +105,7 @@ class QuantumModel(Module):
         for name in param_names:
             if (name in trainable_param_values) and (name in seq.declared_variables):
                 self.seq_param_values[name] = torch.nn.Parameter(
-                    trainable_param_values[name], requires_grad=True
+                    cast(Tensor, trainable_param_values[name]), requires_grad=True
                 )
             elif name in self.seq_params:
                 if self.seq_params[name].trainable:
@@ -104,10 +117,16 @@ class QuantumModel(Module):
         for name, param in self.register_params.items():
             if name in trainable_param_values and param.trainable:
                 self.reg_param_values[name] = torch.nn.Parameter(
-                    trainable_param_values[name], requires_grad=True
+                    cast(Tensor, trainable_param_values[name]), requires_grad=True
                 )
             else:
                 self.reg_param_values[name] = param.value.tolist()  # type: ignore [union-attr]
+
+        # declare trainable callable function params
+        self.call_param_values = ParameterDict()
+        for name, param in self.callable_params.items():  # type: ignore [assignment]
+            for i, v in enumerate(cast(tuple, param)):
+                self.call_param_values[f"{name}_{i}"] = torch.nn.Parameter(v, requires_grad=True)
 
         # construct register with Parameter objects for coordinates
         self.register = self._construct_register()
@@ -123,11 +142,20 @@ class QuantumModel(Module):
 
         # build actual sequence from parameterized one
         if self._seq_opt.is_parametrized():
+            # select parameters that are needed to build a sequence
             build_params = {
                 name: val
                 for name, val in self.seq_param_values.items()
                 if name in self._seq_opt.declared_variables
             }
+            # evaluate callables and add resulting tensors to build parameters
+            for name, fn in self.callables.items():
+                call_param_values = [
+                    v
+                    for n, v in self.call_param_values.items()
+                    if "_".join(n.split("_")[:-1]) == name
+                ]
+                build_params[name] = fn(*call_param_values)
             self.built_seq = self._seq_opt.build(**build_params)
         else:
             self.built_seq = self._seq_opt
@@ -173,7 +201,7 @@ class QuantumModel(Module):
         return seq_opt
 
     def _get_abstract_repr(self, seq: Sequence) -> tuple[list[dict], bool, dict[str, Parameter]]:
-        pulse_list = []
+        pulses = []
         all_calls = [call for call in seq._calls + seq._to_build_calls if call.name == "add"]
         for call in all_calls:
             pulse = call.args[0]
@@ -181,17 +209,33 @@ class QuantumModel(Module):
                 k: v._to_abstract_repr() if hasattr(v, "_to_abstract_repr") else v
                 for k, v in pulse._to_abstract_repr().items()
             }
-            pulse_list.append(d)
+            pulses.append(d)
 
-        optimize_duration = any(
-            [isinstance(pulse["amplitude"]["duration"], VariableItem) for pulse in pulse_list]
-        )
+        optimize_duration = False
+        for pulse in pulses:
+            if "duration" in pulse["amplitude"]:
+                duration = pulse["amplitude"]["duration"]
+            else:
+                samples = pulse["amplitude"]["samples"]
+                duration = samples.size if isinstance(samples, Variable) else len(samples)
+
+            # get the name of duration variable
+            if isinstance(duration, VariableItem):
+                optimize_duration = True
+                break
 
         params = {}
-        for pulse in pulse_list:
-            pulse["duration"] = pulse["amplitude"]["duration"]
-            pulse["amplitude"].pop("duration")
-            pulse["detuning"].pop("duration")
+        for pulse in pulses:
+            # get duration of the pulse
+            if "duration" in pulse["amplitude"]:
+                pulse["duration"] = pulse["amplitude"]["duration"]
+                pulse["amplitude"].pop("duration")
+            else:
+                samples = pulse["amplitude"]["samples"]
+                pulse["duration"] = samples.size if isinstance(samples, Variable) else len(samples)
+
+            if "duration" in pulse["detuning"]:
+                pulse["detuning"].pop("duration")
 
             if optimize_duration:
                 # convert duration to Parameter object
@@ -247,9 +291,14 @@ class QuantumModel(Module):
                 )
             params[pulse["phase"].name] = pulse["phase"]
 
-        return pulse_list, optimize_duration, params
+        return pulses, optimize_duration, params
 
-    def _get_total_duration(self, trainable_param_values: dict[str, Tensor] | ParameterDict) -> int:
+    def _get_total_duration(
+        self,
+        trainable_param_values: (
+            dict[str, Tensor] | dict[str, tuple[tuple, Callable]] | ParameterDict
+        ),
+    ) -> int:
         total_duration = 0
         for pulse in self.seq_abs_repr:
             duration = pulse["duration"]
@@ -260,7 +309,7 @@ class QuantumModel(Module):
                 value = duration.value
 
             # increase total duration
-            total_duration += int(value * 1000)
+            total_duration += int(cast(float, value) * 1000)
 
         # add 5 ns to improve convergence
         total_duration += 5
@@ -336,6 +385,14 @@ class QuantumModel(Module):
                 for name, val in self.seq_param_values.items()
                 if name in self._seq_opt.declared_variables
             }
+            # evaluate callables and add resulting tensors to build parameters
+            for name, fn in self.callables.items():
+                call_param_values = [
+                    v
+                    for n, v in self.call_param_values.items()
+                    if "_".join(n.split("_")[:-1]) == name
+                ]
+                build_params[name] = fn(*call_param_values)
             self.built_seq = self._seq_opt.build(**build_params)
         else:
             self.built_seq = self._seq_opt

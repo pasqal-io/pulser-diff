@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Callable
+
 import pytest
 import torch
 from metrics import ATOL_EXPV_DP, ATOL_EXPV_KRYLOV, ATOL_OPTIM, ATOL_OPTIM_COORD, ATOL_WF
@@ -8,6 +10,7 @@ from pulser.parametrized import ParamObj
 from pulser.waveforms import (
     BlackmanWaveform,
     ConstantWaveform,
+    CustomWaveform,
     KaiserWaveform,
     RampWaveform,
 )
@@ -576,3 +579,73 @@ def test_training_with_constraints(
 
     model_params = {name.split(".")[-1]: value.data for name, value in model.named_parameters()}
     assert (model_params["omega"] >= 4.5) and (model_params["omega"] <= 5.5)
+
+
+@pytest.mark.flaky(max_runs=5)
+@pytest.mark.parametrize("solver", [SolverType.DP5_SE, SolverType.KRYLOV_SE])
+def test_custom_waveform_training(
+    solver: SolverType,
+    seq: Sequence,
+    const_val: Tensor,
+    blackman_area: Tensor,
+    custom_wf_func: Callable,
+    custom_pulse_duration: int,
+    total_magnetization_torch: Tensor,
+) -> None:
+    # declare sequence variables
+    omega_param = seq.declare_variable("omega")
+    area_param = seq.declare_variable("area")
+
+    # create pulses with predefined shapes
+    pulse_const = Pulse.ConstantPulse(1000, omega_param, 0.0, 0.0)
+    amp_wf = BlackmanWaveform(800, area_param)
+    det_wf = RampWaveform(800, 5.0, 0.0)
+    pulse_td = Pulse(amp_wf, det_wf, 0)
+
+    # create custom-shaped pulse
+    omega_custom_param = seq.declare_variable("omega_custom", size=custom_pulse_duration)
+    cust_amp = CustomWaveform(omega_custom_param)  # type: ignore [arg-type]
+    cust_det = ConstantWaveform(custom_pulse_duration, 1.5)
+    pulse_custom = Pulse(cust_amp, cust_det, 0.0)
+
+    # add pulses
+    seq.add(pulse_const, "rydberg_global")
+    seq.add(pulse_td, "rydberg_global")
+    seq.add(pulse_custom, "rydberg_global")
+
+    param1 = torch.tensor(6.0, requires_grad=True)
+    param2 = torch.tensor(2.0, requires_grad=True)
+
+    # create quantum model from sequence
+    trainable_params = {
+        "omega": const_val,
+        "area": blackman_area,
+        "omega_custom": ((param1, param2), custom_wf_func),
+    }
+    model = QuantumModel(seq, trainable_params, sampling_rate=1.0, solver=solver)  # type: ignore [arg-type]
+
+    # define loss function
+    loss_fn = torch.nn.MSELoss()
+
+    # define optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
+
+    epochs = 50
+    target_value = torch.tensor(-0.5, dtype=torch.float64)
+    for t in range(epochs):
+        # calculate current function value and loss
+        _, exp_val = model.expectation(total_magnetization_torch)
+        loss = loss_fn(exp_val.real[-1], target_value)
+
+        # backprop
+        loss.backward()
+        optimizer.step()
+        optimizer.zero_grad()
+
+        # rebuild sequence with updated parameter values
+        model.update_sequence()
+
+        if torch.sqrt(loss) < ATOL_OPTIM:
+            break
+
+    assert torch.isclose(exp_val[-1].real, target_value, atol=ATOL_OPTIM)
