@@ -6,6 +6,8 @@ nav:
   - Notebooks:
     - index.md
     - Basic usage: basic_usage.ipynb
+    - Gate optimization: gate_optimization.ipynb
+    - State preparation: state_preparation.ipynb
 
 theme:
   name: material
