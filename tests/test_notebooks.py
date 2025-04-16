@@ -27,6 +27,8 @@ notebooksdir = Path(__file__).parent.parent.joinpath("docs")
 notebooks = [
     Path(nb).relative_to(notebooksdir.parent)
     for nb in glob(str(notebooksdir / "**/*.ipynb"), recursive=True)
+    if str(nb).split("/")[-1]  # exclude gate optimization notebook from
+    != "gate_optimization.ipynb"  # testing due to large running time
 ]
 
 

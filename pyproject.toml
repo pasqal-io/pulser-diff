@@ -71,7 +71,7 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
-test = "pytest --cov-report=term-missing --cov-config=pyproject.toml --cov=pulser_diff {args}"
+test = "pytest --ignore=./tests/test_notebooks.py --cov-report=term-missing --cov-config=pyproject.toml --cov=pulser_diff {args}"
 test-notebooks = "pytest -vvv ./tests/test_notebooks.py {args}"
 
 [tool.pytest.ini_options]
