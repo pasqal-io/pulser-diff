@@ -34,6 +34,7 @@ class QuantumModel(Module):
         constraints: dict[str, Any] = {},
         sampling_rate: float = 1.0,
         solver: SolverType = SolverType.DP5_SE,
+        initial_state: Tensor | None = None,
         time_grad: bool = False,
         dist_grad: bool = False,
         **options: Any,
@@ -66,6 +67,7 @@ class QuantumModel(Module):
         self.device = seq.device
         self.sampling_rate = sampling_rate
         self.solver = solver
+        self.initial_state = initial_state
         self.time_grad = time_grad
         self.dist_grad = dist_grad
         self.options = options
@@ -399,6 +401,8 @@ class QuantumModel(Module):
 
     def _run(self) -> tuple[Tensor, SimulationResults]:
         self._sim = TorchEmulator.from_sequence(self.built_seq, sampling_rate=self.sampling_rate)
+        if self.initial_state is not None:
+            self._sim.set_initial_state(self.initial_state)
         results = self._sim.run(
             time_grad=self.time_grad, dist_grad=self.dist_grad, solver=self.solver, **self.options
         )

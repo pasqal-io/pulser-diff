@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache, reduce
-from math import prod
+from math import pi, prod, sin
 
 import torch
 from pyqtorch.matrices import IMAT, ZMAT
@@ -105,8 +105,6 @@ def basis_state(dim: int | tuple[int, ...], number: int | tuple[int, ...]) -> Te
     Args:
         dim _(int or tuple of ints)_: Dimension of the Hilbert space of each mode.
         number _(int or tuple of ints)_: Fock state number of each mode.
-        dtype: Complex data type of the returned tensor.
-        device: Device of the returned tensor.
 
     Returns:
         _(n, 1)_ Ket of the Fock state or tensor product of Fock states.
@@ -127,3 +125,50 @@ def basis_state(dim: int | tuple[int, ...], number: int | tuple[int, ...]) -> Te
     ket = torch.zeros(prod(dim), 1)
     ket[n] = 1.0
     return ket
+
+
+def s(t: float) -> float:
+    """
+    Smooth transition function returns a smooth interpolation value between 0 and 1
+    using a sine curve.
+
+    Parameters:
+        t (float): A normalized time value, typically in the range [0, 1].
+
+    Returns:
+        float: A value in the range [0, 1] following a sine curve.
+    """
+
+    return (1 + sin((pi * t - (pi / 2)))) / 2
+
+
+def interpolate_sine(num_values: int, duration: int) -> Tensor:
+    """
+    Generates a time-interpolation matrix using sine-based interpolation.
+
+    Each column of the output matrix corresponds to one of the `values` control
+    points, and each row corresponds to a discrete time step in the `duration`.
+    The values in the matrix represent weights that smoothly transition from
+    one control point to the next using a sine easing function.
+
+    Parameters:
+        num_values (int): The number of interpolation points (columns).
+        duration (int): The number of time steps (rows).
+
+    Returns:
+        Tensor: A (duration x values) matrix of sine-interpolated weights.
+    """
+
+    step_size = duration / (num_values + 1)
+    mat = torch.zeros((duration, num_values))
+
+    for k in range(duration):
+        idx, r = divmod(k, step_size)
+        idx = int(idx)
+        h = r / step_size
+        if idx > 0:
+            mat[k, idx - 1] = 1 - s(h)
+        if idx < num_values:
+            mat[k, idx] = s(h)
+
+    return mat
