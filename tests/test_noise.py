@@ -121,7 +121,7 @@ def test_stochastic_noise(torch_sim: Callable, qt_sim: Callable, cfg: SimConfig)
 def test_expect_sparse_dm(hermitian: Tensor) -> None:
     density_matrix = hermitian / trace(hermitian)
     sparse_density_matrix = density_matrix.to_sparse()
-    obs = total_magnetization(4)
+    obs = total_magnetization(4, use_sparse=True)
     assert torch.allclose(expect(obs, density_matrix), expect(obs, sparse_density_matrix))
 
 
