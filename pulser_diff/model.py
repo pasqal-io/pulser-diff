@@ -13,6 +13,7 @@ from torch import Tensor
 from torch.nn import Module, ParameterDict
 
 from pulser_diff.backend import TorchEmulator
+from pulser_diff.simconfig import SimConfig
 from pulser_diff.simresults import SimulationResults
 from pulser_diff.utils import total_magnetization
 from pulser_diff.waveform_funcs import constant_waveform
@@ -35,6 +36,7 @@ class QuantumModel(Module):
         sampling_rate: float = 1.0,
         solver: SolverType = SolverType.DP5_SE,
         initial_state: Tensor | None = None,
+        noise_config: SimConfig | None = None,
         time_grad: bool = False,
         dist_grad: bool = False,
         **options: Any,
@@ -68,6 +70,7 @@ class QuantumModel(Module):
         self.sampling_rate = sampling_rate
         self.solver = solver
         self.initial_state = initial_state
+        self.noise_config = noise_config
         self.time_grad = time_grad
         self.dist_grad = dist_grad
         self.options = options
@@ -403,6 +406,8 @@ class QuantumModel(Module):
         self._sim = TorchEmulator.from_sequence(self.built_seq, sampling_rate=self.sampling_rate)
         if self.initial_state is not None:
             self._sim.set_initial_state(self.initial_state)
+        if self.noise_config is not None:
+            self._sim.set_config(self.noise_config)
         results = self._sim.run(
             time_grad=self.time_grad, dist_grad=self.dist_grad, solver=self.solver, **self.options
         )

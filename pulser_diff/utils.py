@@ -45,28 +45,34 @@ def kron(*args: Tensor) -> Tensor:
 
 
 @lru_cache
-def total_magnetization(n_qubits: int) -> Tensor:
-    zero_sparse = torch.sparse_coo_tensor(
-        torch.as_tensor([[0], [0]]),
-        [0],
-        (2**n_qubits, 2**n_qubits),
-        dtype=torch.complex128,
-    )
+def total_magnetization(n_qubits: int, use_sparse: bool = False) -> Tensor:
+    if use_sparse:
+        zero_mat = torch.sparse_coo_tensor(
+            torch.as_tensor([[0], [0]]),
+            [0],
+            (2**n_qubits, 2**n_qubits),
+            dtype=torch.complex128,
+        )
+    else:
+        zero_mat = torch.zeros((2**n_qubits, 2**n_qubits), dtype=torch.complex128)
 
-    # create sparse total magnetization observable
+    # create total magnetization observable
     obs = []
     for i in range(n_qubits):
-        tprod = [IMAT.to_sparse() for _ in range(n_qubits)]
-        tprod[i] = ZMAT.to_sparse()
+        tprod = [IMAT.to_sparse() if use_sparse else IMAT for _ in range(n_qubits)]
+        tprod[i] = ZMAT.to_sparse() if use_sparse else ZMAT
         obs.append(kron(*tprod))
-    return sum(obs, start=zero_sparse)
+    return sum(obs, start=zero_mat)
 
 
 def expect(obs: Tensor, states: Tensor) -> Tensor:
     if obs.is_sparse:
-        if states.size(-1) == 1:
+        if len(states.shape) == 3:
             states = states.squeeze(-1)
             exp_val = torch.matmul(states.conj(), torch.matmul(obs, states.T)).to_dense().diag()
+        elif len(states.shape) == 4:
+            states = states.squeeze(-1)
+            exp_val = trace(torch.matmul(obs, states))
         elif states.size(-1) == states.size(-2):
             exp_val = trace(torch.matmul(obs, states))
     else:
