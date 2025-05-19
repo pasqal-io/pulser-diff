@@ -1,4 +1,4 @@
-name: Tests
+name: Notebook tests
 
 on:
   push:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   test_pulser_diff_notebooks:
-    name: Run unit/integration tests
+    name: Run notebooks
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
