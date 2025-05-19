@@ -1,12 +1,3 @@
-variables:
-  #HATCH_INDEX_USER: $PYPI_USERNAME
-  #HATCH_INDEX_AUTH: $PYPI_PASSWORD
-  #HATCH_INDEX_REPO: $PYPI_URL
-  #SSH_PRIVATE_KEY: $SSH_PRIVATE_KEY
-  #DOCKER_NAMESPACE: docker/project/namespace
-  #DOCKER_PACKAGE_NAME: my-package
-  #CLUSTER_MODULE_NAME: mypackage
-
 stages:
   - lint
   - test
@@ -46,11 +37,9 @@ test-notebooks:
   script:
     - "command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client libcairo2-dev -y )"
     - eval $(ssh-agent -s)
-    #- echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - ssh-keyscan github.com >> ~/.ssh/known_hosts
-    #- ssh-keyscan gitlab.pasqal.com >> ~/.ssh/known_hosts
     - chmod 644 ~/.ssh/known_hosts
     - python -m hatch -v run test-notebooks
 

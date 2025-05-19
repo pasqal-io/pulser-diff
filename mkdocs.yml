@@ -1,5 +1,6 @@
-site_name: pulser-diff
-repo_url: "https://gitlab.pasqal.com/pqs/pulser-diff"
+site_name: PulserDiff
+repo_url: "https://github.com/pasqal-io/qadence/"
+site_url: "https://pasqal-io.github.io/qadence/"
 repo_name: "pulser-diff"
 
 nav:
