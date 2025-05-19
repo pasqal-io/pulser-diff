@@ -23,7 +23,7 @@ jobs:
 
     - name: Install pre-commit
       run: |
-        pip install pre-commit
+        pip install pre-commit mypy
         pre-commit install
 
     - name: Check files
