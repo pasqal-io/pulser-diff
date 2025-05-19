@@ -31,8 +31,8 @@ jobs:
         cp JetBrainsMono/fonts/ttf/*.ttf /usr/share/fonts/truetype/jetbrains/
         fc-cache -f -v
 
-    # - name: Install graphviz
-    #   run: sudo apt-get install -y graphviz
+    - name: Install graphviz
+      run: sudo apt-get install -y graphviz
 
     - name: Set up Python 3.10
       uses: actions/setup-python@v5
