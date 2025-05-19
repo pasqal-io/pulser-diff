@@ -30,7 +30,7 @@ from pulser_diff.derivative import deriv_param, deriv_time
 
 def add_pulses(
     seq: Sequence,
-    duration: int,
+    duration,
     const_val: Tensor,
     phase_val: Tensor,
     ramp_val_start: Tensor,
