@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test_pulser_diff:
+  test_pulser_diff_notebooks:
     name: Run unit/integration tests
     strategy:
       matrix:
@@ -33,9 +33,9 @@ jobs:
     - name: Install Hatch
       run: |
         pip install hatch
-    - name: Run tests
+    - name: Run notebook test
       run: |
-        hatch -v run test
+        hatch -v run test-notebooks
     - name: Upload coverage data
       uses: actions/upload-artifact@v4
       with:
