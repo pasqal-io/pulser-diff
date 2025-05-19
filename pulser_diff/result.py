@@ -68,7 +68,7 @@ class TorchResult(Result):
             return "digital" if self.meas_basis == "ground-rydberg" else "ground-rydberg"
         return self.meas_basis
 
-    def _weights(self) -> Tensor:  # type: ignore [override]
+    def _weights(self) -> Tensor:
         n = self._size
         if not self.state.shape[1] == 1:
             probs = torch.abs(self.state.diag())

@@ -178,7 +178,7 @@ class TorchEmulator:
     @property
     def config(self) -> SimConfig:
         """The current configuration, as a SimConfig instance."""
-        return SimConfig.from_noise_model(self._hamiltonian.config)
+        return SimConfig.from_noise_model(self._hamiltonian.config)  # type: ignore [no-any-return]
 
     def set_config(self, cfg: SimConfig) -> None:
         """Sets current config to cfg and updates simulation parameters.
@@ -239,7 +239,7 @@ class TorchEmulator:
 
     def show_config(self, solver_options: bool = False) -> None:
         """Shows current configuration."""
-        print(self.config.__str__(solver_options))
+        print(self.config.__str__(solver_options))  # type: ignore [call-arg]
 
     def reset_config(self) -> None:
         """Resets configuration to default."""

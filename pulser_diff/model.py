@@ -129,7 +129,7 @@ class QuantumModel(Module):
 
         # declare trainable callable function params
         self.call_param_values = ParameterDict()
-        for name, param in self.callable_params.items():  # type: ignore [assignment]
+        for name, param in self.callable_params.items():
             for i, v in enumerate(cast(tuple, param)):
                 self.call_param_values[f"{name}_{i}"] = torch.nn.Parameter(v, requires_grad=True)
 
@@ -363,7 +363,7 @@ class QuantumModel(Module):
             envelope_funcs["phase"].append(constant_waveform(cast(ParamObj, ti), tf, var))
 
             # shift ti to end of pulse
-            ti = tf  # type: ignore [assignment]
+            ti = tf
 
         return envelope_funcs
 
