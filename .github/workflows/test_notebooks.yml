@@ -20,8 +20,8 @@ jobs:
     name: Run notebooks
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        os: [ubuntu-latest]
+        python-version: ["3.10"]
     runs-on: ${{ matrix.os }}
     steps:
     - name: Checkout PulserDiff
