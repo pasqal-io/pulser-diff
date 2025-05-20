@@ -1,8 +1,25 @@
 # PulserDiff
 
-Differentiable backend for pulse-level quantum simulation framework ``Pulser``.
+`PulserDiff` is a differentiable backend for pulse-level quantum simulation framework [Pulser](https://github.com/pasqal-io/Pulser).
 
-`PulserDiff` aims to provide completely differentiable quantum states/expectations through use of automatic differentiation capabilities of underlying `PyTorch` package.
+It aims to provide completely differentiable quantum states/expectations through use of automatic differentiation capabilities of underlying [PyTorch](https://pytorch.org/) package.
+
+
+[![Unit tests](https://github.com/pasqal-io/pulser-diff/actions/workflows/test.yml/badge.svg)](https://github.com/pasqal-io/pulser-diff/actions/workflows/test.yml)
+[![Notebook tests](https://github.com/pasqal-io/pulser-diff/actions/workflows/test_notebooks.yml/badge.svg)](https://github.com/pasqal-io/pulser-diff/actions/workflows/test_notebooks.yml)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Pypi](https://badge.fury.io/py/pulser-diff.svg)](https://pypi.org/project/pulser-diff/)
+![Coverage](https://img.shields.io/codecov/c/github/pasqal-io/pulser-diff?style=flat-square)
+
+
+## Installation guide
+
+`PulserDiff` can be installed from PyPI with `pip` as follows:
+
+```bash
+pip install pulser-diff
+```
+
 
 ## Develop
 
