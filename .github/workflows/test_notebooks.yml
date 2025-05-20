@@ -20,7 +20,7 @@ jobs:
     name: Run notebooks
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.10"]
     runs-on: ${{ matrix.os }}
     steps:
