@@ -14,7 +14,7 @@ def test_constant_pulse() -> None:
     value = Variable("value", dtype=float)
 
     # define constant pulse envelope
-    const_pulse = constant_waveform(ti, tf, value)  # type: ignore [arg-type]
+    const_pulse = constant_waveform(ti, tf, value)
 
     # generate random numerical values for variables
     ti_val = torch.rand(1)

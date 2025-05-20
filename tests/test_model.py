@@ -604,7 +604,7 @@ def test_custom_waveform_training(
 
     # create custom-shaped pulse
     omega_custom_param = seq.declare_variable("omega_custom", size=custom_pulse_duration)
-    cust_amp = CustomWaveform(omega_custom_param)  # type: ignore [arg-type]
+    cust_amp = CustomWaveform(omega_custom_param)
     cust_det = ConstantWaveform(custom_pulse_duration, 1.5)
     pulse_custom = Pulse(cust_amp, cust_det, 0.0)
 
@@ -622,7 +622,7 @@ def test_custom_waveform_training(
         "area": blackman_area,
         "omega_custom": ((param1, param2), custom_wf_func),
     }
-    model = QuantumModel(seq, trainable_params, sampling_rate=1.0, solver=solver)  # type: ignore [arg-type]
+    model = QuantumModel(seq, trainable_params, sampling_rate=1.0, solver=solver)
 
     # define loss function
     loss_fn = torch.nn.MSELoss()

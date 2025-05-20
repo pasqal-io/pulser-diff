@@ -15,11 +15,11 @@ def constant_waveform(
 
     def pulse_envelope(t: int) -> ParamObj:
         if ti == 0:
-            fn = value * 0.5 * (1.0 + (edge_steepness * (-(t - tf * 1000))).tanh())  # type: ignore [operator]
+            fn = value * 0.5 * (1.0 + (edge_steepness * (-(t - tf * 1000))).tanh())
         else:
             fn = value * (
-                (0.5 * (1.0 + (edge_steepness * (t - ti * 1000)).tanh()))  # type: ignore [operator]
-                + (0.5 * (1.0 + (edge_steepness * (-(t - tf * 1000))).tanh()))  # type: ignore [operator]
+                (0.5 * (1.0 + (edge_steepness * (t - ti * 1000)).tanh()))
+                + (0.5 * (1.0 + (edge_steepness * (-(t - tf * 1000))).tanh()))
                 - 1.0
             )
         return fn

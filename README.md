@@ -1,8 +1,8 @@
-# pulser-diff
+# PulserDiff
 
-Differentiable backend for pulse-level quantum simulation framework ``pulser``.
+Differentiable backend for pulse-level quantum simulation framework ``Pulser``.
 
-`pulser-diff` aims to provide completely differentiable quantum states/expectations through use of automatic differentiation capabilities of underlying `torch` package.
+`PulserDiff` aims to provide completely differentiable quantum states/expectations through use of automatic differentiation capabilities of underlying `PyTorch` package.
 
 ## Develop
 

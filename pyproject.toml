@@ -8,7 +8,7 @@ description = "Differentiable backend for Pulser"
 readme = "README.md"
 version = "0.1.0"
 requires-python = ">=3.9,<3.11"
-license = {text = "Proprietary"}
+license = { text = "Apache 2.0" }
 keywords = ["quantum", "pulser"]
 authors = [
   { name = "Vytautas Abramavicius", email = "vytautas.abramavicius@pasqal.com" },
@@ -37,16 +37,10 @@ dependencies = [
 allow-direct-references = true
 allow-ambiguous-features = true
 
-# install libraries from the Pasqal quantum libraries private PyPi repository
-# ask in the relevant code Slack channels if you do not have the credentials
-# to access the PyPi repository
-[tool.hatch.envs.default.env-vars]
-# PIP_EXTRA_INDEX_URL = "https://{env:PYPI_USERNAME}:{env:PYPI_PASSWORD}@gitlab.pasqal.com/api/v4/projects/190/packages/pypi/simple"
-
 [project.urls]
-# Documentation = ""
-Issues = "https://gitlab.pasqal.com/pqs/pulser-diff/-/issues"
-Source = "https://gitlab.pasqal.com/pqs/pulser-diff"
+Documentation = "https://pasqal-io.github.io/pulser-diff/latest/"
+Issues = "https://github.com/pasqal-io/pulser-diff/issues"
+Source = "https://github.com/pasqal-io/pulser-diff"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pulser_diff"]
@@ -118,12 +112,6 @@ python = ["310", "311", "312"]
 [tool.coverage.run]
 branch = true
 parallel = true
-# uncomment to omit any file from the
-# coverage. Regexps can be used
-# to select all files from a folder
-#omit = [
-#  "template_python/to_omit.py",
-#]
 
 [tool.coverage.report]
 exclude_lines = [
