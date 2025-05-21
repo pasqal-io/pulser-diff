@@ -8,8 +8,6 @@ It aims at providing completely differentiable quantum states or expectation val
 [![Unit tests](https://github.com/pasqal-io/pulser-diff/actions/workflows/test.yml/badge.svg)](https://github.com/pasqal-io/pulser-diff/actions/workflows/test.yml)
 [![Notebook tests](https://github.com/pasqal-io/pulser-diff/actions/workflows/test_notebooks.yml/badge.svg)](https://github.com/pasqal-io/pulser-diff/actions/workflows/test_notebooks.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Pypi](https://badge.fury.io/py/pulser-diff.svg)](https://pypi.org/project/pulser-diff/)
-![Coverage](https://img.shields.io/codecov/c/github/pasqal-io/pulser-diff?style=flat-square)
 
 
 ## Installation guide

@@ -110,7 +110,7 @@ class Hamiltonian:
                 if self.basis_name == "digital"
                 else config.dephasing_rate
             )
-            local_collapse_ops.append(torch.sqrt(torch.as_tensor(rate) / 2) * ZMAT.to_sparse())
+            local_collapse_ops.append(torch.sqrt(torch.as_tensor(rate) / 2) * ZMAT)
 
         if "relaxation" in config.noise_types:
             coeff = torch.sqrt(torch.as_tensor(config.relaxation_rate))
@@ -124,16 +124,15 @@ class Hamiltonian:
         if "depolarizing" in config.noise_types:
             basis_check("depolarizing")
             coeff = torch.sqrt(torch.as_tensor(config.depolarizing_rate) / 4)
-            local_collapse_ops.append(coeff * XMAT.to_sparse())
-            local_collapse_ops.append(coeff * YMAT.to_sparse())
-            local_collapse_ops.append(coeff * ZMAT.to_sparse())
+            local_collapse_ops.append(coeff * XMAT)
+            local_collapse_ops.append(coeff * YMAT)
+            local_collapse_ops.append(coeff * ZMAT)
 
         if "eff_noise" in config.noise_types:
             basis_check("effective")
             for id, rate in enumerate(config.eff_noise_rates):
                 local_collapse_ops.append(
-                    torch.sqrt(torch.as_tensor(rate))
-                    * torch.as_tensor(config.eff_noise_opers[id]).to_sparse()
+                    torch.sqrt(torch.as_tensor(rate)) * torch.as_tensor(config.eff_noise_opers[id])
                 )
 
         # Building collapse operators

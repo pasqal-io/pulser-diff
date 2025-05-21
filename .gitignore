@@ -20,3 +20,4 @@ __venv__/
 *.pyc
 .hypothesis
 site/
+tests/converted_notebooks/
