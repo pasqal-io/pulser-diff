@@ -14,12 +14,13 @@ It aims at providing completely differentiable quantum states or expectation val
 
 ## Installation guide
 
-`PulserDiff` can be installed from PyPI with `pip` as follows:
+`PulserDiff` can be installed from source by entering your preferred virtual python environment and running the following commands:
 
 ```bash
-pip install pulser-diff
+git clone https://github.com/pasqal-io/pulser-diff.git
+cd pulser-diff
+pip install .
 ```
-
 
 ## Develop
 
@@ -66,13 +67,4 @@ In order to build and serve the documentation locally, you can use `hatch` with 
 ```bash
 python -m hatch -v run docs:build
 python -m hatch -v run docs:serve
-```
-
-If you don't want to use `hatch`, just check into your favorite virtual environment and
-execute the following commands:
-
-```bash
-python -m pip install -r docs/requirements.txt
-mkdocs build
-mkdocs serve
 ```

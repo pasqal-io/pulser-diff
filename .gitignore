@@ -19,3 +19,4 @@ env*
 __venv__/
 *.pyc
 .hypothesis
+site/
