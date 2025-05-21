@@ -495,7 +495,7 @@ class TorchEmulator:
             elif solver == SolverType.DP5_ME:
                 if not self.config.noise:
                     dim = 2 ** len(self._register.qubits)
-                    collapse_ops = [torch.zeros(dim, dim).to_sparse()]
+                    collapse_ops = [torch.zeros(dim, dim, dtype=torch.complex128)]
                 else:
                     collapse_ops = self._hamiltonian._collapse_ops
 

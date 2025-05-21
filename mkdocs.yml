@@ -1,7 +1,7 @@
 site_name: PulserDiff
-repo_url: "https://github.com/pasqal-io/qadence/"
-site_url: "https://pasqal-io.github.io/qadence/"
-repo_name: "pulser-diff"
+repo_url: "https://github.com/pasqal-io/pulser-diff/"
+site_url: "https://pasqal-io.github.io/pulser-diff/"
+repo_name: "PulserDiff"
 
 nav:
   - Notebooks:
